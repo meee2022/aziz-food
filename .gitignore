@@ -1,0 +1,22 @@
+node_modules
+dist
+dist-ssr
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+
+# secrets / local env (do NOT commit)
+.env
+.env.local
+.env.*.local
+
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+
+# Excel/Word temp lock files
+~$*.xlsx
+~$*.docx
+
+# scratch
+scratch_*
