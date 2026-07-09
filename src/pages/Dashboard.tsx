@@ -54,6 +54,14 @@ export default function Dashboard() {
         <StatCard label={t("العملاء", "Customers")} value={num(d.customerCount, 0)} icon="users" />
       </div>
 
+      {/* المصروفات وصافي الربح */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 22 }}>
+        <StatCard label={t("مصروفات اليوم", "Today Expenses")} value={money((d as any).todayExpenses ?? 0)} icon="money" accent />
+        <StatCard label={t("صافي ربح اليوم", "Today Net")} value={money((d as any).todayNet ?? 0)} icon="chart" sub={t("بعد المصروفات", "after expenses")} />
+        <StatCard label={t("مصروفات الشهر", "Month Expenses")} value={money((d as any).monthExpenses ?? 0)} icon="money" accent />
+        <StatCard label={t("صافي ربح الشهر", "Month Net")} value={money((d as any).monthNet ?? 0)} icon="chart" sub={t("بعد المصروفات", "after expenses")} />
+      </div>
+
       {/* رسم المبيعات آخر 7 أيام */}
       <div className="card" style={{ marginBottom: 18 }}>
         <div className="section-title" style={{ marginBottom: 16 }}>{t("مبيعات آخر 7 أيام", "Last 7 Days")}</div>

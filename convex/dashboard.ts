@@ -18,6 +18,12 @@ export const overview = query({
     const invoices = (await ctx.db.query("invoices").collect()).filter((i) => i.status === "approved");
     const customers = await ctx.db.query("customers").collect();
     const items = await ctx.db.query("items").withIndex("by_active", (q) => q.eq("active", true)).collect();
+    const expenses = await ctx.db.query("expenses").collect();
+
+    const sumExp = (pred: (e: any) => boolean) => round2(expenses.filter(pred).reduce((s: number, e: any) => s + e.amount, 0));
+    const todayExpenses = sumExp((e) => e.date === today);
+    const weekExpenses = sumExp((e) => e.date >= weekAgo);
+    const monthExpenses = sumExp((e) => e.date >= monthAgo);
 
     const todayInv = invoices.filter((i) => i.date === today);
     const weekInv = invoices.filter((i) => i.date >= weekAgo);
@@ -88,6 +94,11 @@ export const overview = query({
       weekProfit: sum(weekInv, "expectedProfit"),
       monthSales: sum(monthInv, "total"),
       monthProfit: sum(monthInv, "expectedProfit"),
+      todayExpenses,
+      weekExpenses,
+      monthExpenses,
+      todayNet: round2(sum(todayInv, "expectedProfit") - todayExpenses),
+      monthNet: round2(sum(monthInv, "expectedProfit") - monthExpenses),
       customerCount: customers.filter((c) => c.active).length,
       itemCount: items.length,
       totalReceivable,

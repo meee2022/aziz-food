@@ -19,6 +19,7 @@ const NAV: NavItem[] = [
   { to: "/prices", section: "prices", icon: "money", ar: "أسعار اليوم", en: "Daily Prices" },
   { to: "/price-lists", section: "priceLists", icon: "tag", ar: "قوائم الأسعار", en: "Price Lists" },
   { to: "/purchases", section: "purchases", icon: "cart", ar: "المشتريات", en: "Purchases" },
+  { to: "/expenses", section: "expenses", icon: "money", ar: "المصروفات", en: "Expenses" },
   { to: "/reports", section: "reports", icon: "chart", ar: "التقارير", en: "Reports" },
   { to: "/settings", section: "settings", icon: "settings", ar: "الإعدادات", en: "Settings" },
 ];

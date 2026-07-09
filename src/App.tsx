@@ -21,6 +21,7 @@ import Purchases from "./pages/Purchases";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Orders from "./pages/Orders";
+import Expenses from "./pages/Expenses";
 import CustomerPortal from "./pages/CustomerPortal";
 
 /** بوابة الجلسة: تتحقق من صلاحية الـ token وتعيد التوجيه للدخول عند الحاجة. */
@@ -73,6 +74,7 @@ export default function App() {
             <Route path="/prices" element={S(<DailyPrices />)} />
             <Route path="/price-lists" element={S(<PriceLists />)} />
             <Route path="/purchases" element={S(<Purchases />)} />
+            <Route path="/expenses" element={S(<Expenses />)} />
             <Route path="/reports" element={S(<Reports />)} />
             <Route path="/settings" element={S(<Settings />)} />
             <Route path="*" element={<Navigate to="/" replace />} />

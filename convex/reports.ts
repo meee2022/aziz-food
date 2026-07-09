@@ -37,9 +37,18 @@ export const sales = query({
       }
     }
 
+    const expenses = (await ctx.db.query("expenses").collect()).filter((e: any) => e.date >= from && e.date <= to);
+    const totalExpenses = round2(expenses.reduce((s: number, e: any) => s + e.amount, 0));
+    const expByCat: Record<string, number> = {};
+    for (const e of expenses) expByCat[e.category] = round2((expByCat[e.category] ?? 0) + e.amount);
+
     return {
       from, to,
-      totals: { sales: totalSales, profit: totalProfit, cost: totalCost, count: invoices.length },
+      totals: {
+        sales: totalSales, profit: totalProfit, cost: totalCost, count: invoices.length,
+        expenses: totalExpenses, net: round2(totalProfit - totalExpenses),
+      },
+      expensesByCategory: Object.entries(expByCat).map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount),
       byDay: [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date)),
       byCustomer: [...byCustomer.values()].sort((a, b) => b.sales - a.sales),
       byItem: [...byItem.values()].sort((a, b) => b.sales - a.sales),

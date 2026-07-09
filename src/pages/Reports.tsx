@@ -42,8 +42,9 @@ export default function Reports() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 18 }}>
         <StatCard label={t("إجمالي المبيعات", "Total Sales")} value={money(rep.totals.sales)} icon="money" />
-        <StatCard label={t("إجمالي الأرباح", "Total Profit")} value={money(rep.totals.profit)} icon="chart" accent />
-        <StatCard label={t("التكلفة", "Cost")} value={money(rep.totals.cost)} icon="cart" />
+        <StatCard label={t("ربح البضاعة", "Gross Profit")} value={money(rep.totals.profit)} icon="chart" accent />
+        <StatCard label={t("المصروفات", "Expenses")} value={money((rep.totals as any).expenses ?? 0)} icon="money" accent />
+        <StatCard label={t("صافي الربح", "Net Profit")} value={money((rep.totals as any).net ?? rep.totals.profit)} icon="chart" />
         <StatCard label={t("عدد الفواتير", "Invoices")} value={num(rep.totals.count, 0)} icon="invoice" />
       </div>
 

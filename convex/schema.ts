@@ -227,6 +227,17 @@ export default defineSchema({
     .index("by_date", ["date"])
     .index("by_item", ["itemId"]),
 
+  // ── المصروفات (توصيل/أجور/إيجار/بنزين...) ──
+  expenses: defineTable({
+    date: v.string(),             // YYYY-MM-DD
+    category: v.string(),         // توصيل / أجور عمال / إيجار / بنزين / أخرى...
+    amount: v.number(),
+    note: v.optional(v.string()),
+    paidTo: v.optional(v.string()),
+    createdBy: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_date", ["date"]),
+
   // ── سجل التدقيق ──
   auditLog: defineTable({
     entity: v.string(),

@@ -44,9 +44,9 @@ export const useAuth = () => useContext(Ctx);
 
 /** صلاحيات كل دور: أي أقسام يمكنه الوصول إليها. */
 export const ROLE_ACCESS: Record<Role, string[]> = {
-  admin: ["dashboard", "invoices", "invoice-new", "orders", "customers", "items", "prices", "priceLists", "purchases", "reports", "settings"],
+  admin: ["dashboard", "invoices", "invoice-new", "orders", "customers", "items", "prices", "priceLists", "purchases", "expenses", "reports", "settings"],
   sales: ["dashboard", "invoices", "invoice-new", "orders", "customers", "items"],
-  accountant: ["dashboard", "invoices", "orders", "customers", "reports", "payments"],
+  accountant: ["dashboard", "invoices", "orders", "customers", "expenses", "reports", "payments"],
   warehouse: ["items", "prices", "purchases"],
   customer: [],
 };
