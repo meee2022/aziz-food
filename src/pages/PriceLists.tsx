@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "../lib/authedConvex";
 import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { money, today } from "../lib/format";
@@ -75,7 +75,7 @@ function PricingModal({ list, onClose }: any) {
   const setItemPrice = useMutation(api.priceLists.setItemPrice);
   const [search, setSearch] = useState("");
   if (items === undefined || listItems === undefined) return <Modal open title="…" onClose={onClose}><Spinner /></Modal>;
-  const priceMap = new Map(listItems.map((li: any) => [li.itemId, li.price]));
+  const priceMap = new Map<any, any>(listItems.map((li: any) => [li.itemId, li.price]));
   const q = search.trim().toLowerCase();
   const rows = items.filter((it) => !q || it.nameEn.toLowerCase().includes(q) || (it.nameAr ?? "").includes(q));
   return (

@@ -1,4 +1,4 @@
-import { query } from "./_generated/server";
+import { authQuery as query } from "./auth";
 import { v } from "convex/values";
 import { round2 } from "./helpers";
 

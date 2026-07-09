@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useQuery } from "convex/react";
+import { useAuthedMutation } from "../lib/authedConvex";
 import { api } from "../../convex/_generated/api";
 import { Icon } from "./ui";
 import { useT, useLang } from "../lib/i18n";
@@ -30,6 +31,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const settings = useQuery(api.settings.all, {});
+  const signOut = useAuthedMutation(api.auth.signOut);
   const brand = lang === "ar" ? (settings?.companyName || "سوق الجملة") : (settings?.companyNameEn || "Wholesale");
   const items = NAV.filter((n) => can(user?.role, n.section));
   const mobileItems = items.filter((n) => MOBILE.includes(n.section)).slice(0, 5);
@@ -89,7 +91,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 <div style={{ fontSize: 10, color: "var(--muted)" }}>{user && t(roleLabel[user.role][0], roleLabel[user.role][1])}</div>
               </div>
             </div>
-            <button className="btn-ghost btn-icon" onClick={() => { logout(); navigate("/login"); }} title={t("خروج", "Logout")}>
+            <button className="btn-ghost btn-icon" onClick={() => { signOut({}).catch(() => {}); logout(); navigate("/login"); }} title={t("خروج", "Logout")}>
               <Icon name="logout" />
             </button>
           </div>

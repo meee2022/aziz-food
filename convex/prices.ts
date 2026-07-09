@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { authQuery as query, authMutation as mutation } from "./auth";
 import { v } from "convex/values";
 import { todayStr, priceOnDate } from "./helpers";
 
@@ -135,9 +135,9 @@ export const importItems = mutation({
     const date = todayStr(args.date);
     const now = Date.now();
     const allItems = await ctx.db.query("items").collect();
-    const byName = new Map(allItems.map((i) => [i.nameEn.trim().toLowerCase(), i]));
+    const byName = new Map<string, any>(allItems.map((i: any) => [i.nameEn.trim().toLowerCase(), i]));
     const cats = await ctx.db.query("categories").collect();
-    const catByName = new Map(cats.map((c) => [c.nameEn.trim().toLowerCase(), c._id]));
+    const catByName = new Map<string, any>(cats.map((c: any) => [c.nameEn.trim().toLowerCase(), c._id]));
 
     let created = 0,
       updated = 0;
@@ -147,7 +147,7 @@ export const importItems = mutation({
       const cost = r.cost ?? 0;
       let categoryId = r.category ? catByName.get(r.category.trim().toLowerCase()) : undefined;
 
-      let item = byName.get(key);
+      let item: any = byName.get(key);
       if (!item) {
         const id = await ctx.db.insert("items", {
           nameEn: r.name.trim(),

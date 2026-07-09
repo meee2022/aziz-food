@@ -1,4 +1,5 @@
 import { mutation } from "./_generated/server";
+import { adminMutation } from "./auth";
 import { v } from "convex/values";
 import { round2 } from "./helpers";
 
@@ -88,7 +89,7 @@ function daysAgo(n: number): string {
 }
 
 export const run = mutation({
-  args: { force: v.optional(v.boolean()) },
+  args: { force: v.optional(v.boolean()), token: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const existing = await ctx.db.query("items").first();
     if (existing && !args.force) {
@@ -169,10 +170,10 @@ export const run = mutation({
   },
 });
 
-/** حذف كل البيانات (للتجارب فقط). */
-export const clearAll = mutation({
+/** حذف كل البيانات (للمدير فقط، للتجارب). */
+export const clearAll = adminMutation({
   args: { confirm: v.string() },
-  handler: async (ctx, { confirm }) => {
+  handler: async (ctx: any, { confirm }: any) => {
     if (confirm !== "DELETE") throw new Error("مرّر confirm='DELETE' للتأكيد");
     const tables = [
       "invoices", "payments", "purchases", "returns", "priceHistory",

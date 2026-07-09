@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useQuery, useMutation, useConvex } from "convex/react";
+import { useConvex } from "convex/react";
+import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "../lib/authedConvex";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
@@ -13,7 +14,7 @@ export default function InvoiceCreate() {
   const { id } = useParams();
   const editMode = !!id;
   const t = useT(); const { lang } = useLang();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
   const convex = useConvex();
 
@@ -87,7 +88,7 @@ export default function InvoiceCreate() {
 
   const repeatLast = async () => {
     if (!customerId) return;
-    const last = await convex.query(api.invoices.lastForCustomer, { customerId: customerId as any });
+    const last = await convex.query(api.invoices.lastForCustomer, { customerId: customerId as any, token: token ?? "" } as any);
     if (!last) { alert(t("لا توجد فاتورة سابقة لهذا العميل", "No previous invoice")); return; }
     // استخدم الأسعار الحالية مع نفس الأصناف والكميات
     const priceMap = new Map((prices ?? []).map((p: any) => [p.itemId, p]));

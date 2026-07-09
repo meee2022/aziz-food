@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "../lib/authedConvex";
 import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
@@ -18,6 +18,7 @@ export default function Settings() {
   const setSetting = useMutation(api.settings.set);
   const createUser = useMutation(api.users.create);
   const updateUser = useMutation(api.users.update);
+  const changeMyPassword = useMutation(api.auth.changeMyPassword);
   const createCat = useMutation(api.categories.create);
   const seed = useMutation(api.seed.run);
 
@@ -50,7 +51,7 @@ export default function Settings() {
         <button className="btn-primary" style={{ marginTop: 14 }}
           disabled={pw1.length < 4 || pw1 !== pw2 || !user}
           onClick={async () => {
-            await updateUser({ id: user!.id as any, pin: pw1 });
+            await changeMyPassword({ newPin: pw1 });
             setPw1(""); setPw2(""); setPwMsg(t("تم تغيير كلمة السر بنجاح", "Password changed successfully"));
           }}>
           <Icon name="check" size={16} /> {t("حفظ كلمة السر", "Save password")}

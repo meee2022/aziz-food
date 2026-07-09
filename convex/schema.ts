@@ -234,6 +234,15 @@ export default defineSchema({
     at: v.number(),
   }).index("by_entity", ["entity"]),
 
+  // ── جلسات الدخول (مصادقة على مستوى الخادم) ──
+  sessions: defineTable({
+    token: v.string(),
+    userId: v.id("users"),
+    name: v.string(),
+    role: v.union(v.literal("admin"), v.literal("sales"), v.literal("accountant"), v.literal("warehouse")),
+    createdAt: v.number(),
+  }).index("by_token", ["token"]),
+
   // ── عدّادات (ترقيم الفواتير) ──
   counters: defineTable({
     name: v.string(),

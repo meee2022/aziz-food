@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useAuthedQuery as useQuery } from "../lib/authedConvex";
 import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { money, num, formatDate, today } from "../lib/format";

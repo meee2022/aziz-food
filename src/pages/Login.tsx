@@ -23,12 +23,12 @@ export default function Login() {
     setLoading(true);
     setError("");
     try {
-      const user = await convex.query(api.users.login, { pin });
-      if (user) {
-        login({ id: user.id, name: user.name, role: user.role });
+      const res = await convex.mutation(api.auth.signIn, { pin });
+      if (res) {
+        login(res.user, res.token);
         navigate("/");
       } else {
-        setError(t("رمز الدخول غير صحيح", "Invalid PIN"));
+        setError(t("كلمة المرور غير صحيحة", "Incorrect password"));
       }
     } catch (e) {
       setError(t("تعذّر الاتصال بقاعدة البيانات", "Cannot reach the database"));

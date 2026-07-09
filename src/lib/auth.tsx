@@ -9,26 +9,34 @@ export interface User {
 
 interface AuthCtx {
   user: User | null;
-  login: (u: User) => void;
+  token: string | null;
+  login: (u: User, token: string) => void;
   logout: () => void;
 }
 
-const Ctx = createContext<AuthCtx>({ user: null, login: () => {}, logout: () => {} });
+const Ctx = createContext<AuthCtx>({ user: null, token: null, login: () => {}, logout: () => {} });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
   const [user, setUser] = useState<User | null>(() => {
     const raw = localStorage.getItem("user");
-    return raw ? (JSON.parse(raw) as User) : null;
+    const tok = localStorage.getItem("token");
+    // اعتبره مسجّلًا فقط إذا وُجد token أيضًا (جلسات قديمة بدون token = إعادة دخول)
+    return raw && tok ? (JSON.parse(raw) as User) : null;
   });
-  const login = (u: User) => {
+  const login = (u: User, tok: string) => {
     setUser(u);
+    setToken(tok);
     localStorage.setItem("user", JSON.stringify(u));
+    localStorage.setItem("token", tok);
   };
   const logout = () => {
     setUser(null);
+    setToken(null);
     localStorage.removeItem("user");
+    localStorage.removeItem("token");
   };
-  return <Ctx.Provider value={{ user, login, logout }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, token, login, logout }}>{children}</Ctx.Provider>;
 }
 
 export const useAuth = () => useContext(Ctx);

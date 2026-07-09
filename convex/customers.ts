@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { authQuery as query, authMutation as mutation } from "./auth";
 import { v } from "convex/values";
 import { effectivePrice, todayStr } from "./helpers";
 
