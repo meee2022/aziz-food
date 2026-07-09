@@ -77,6 +77,15 @@ npm run dev
 ## 🔭 التطوير المستقبلي (جاهز في البنية)
 المخزون، تطبيق طلبات للعميل، ربط واتساب رسمي (Cloud API)، المرتجعات (الجدول موجود)، الموردون، مصادقة حقيقية، تقارير متقدمة.
 
+## 🚀 النشر على Vercel
+1. من [vercel.com](https://vercel.com) → **Add New → Project** → استورد مستودع `meee2022/aziz-food`.
+2. الإعدادات تُكتشف تلقائيًا (Vite · `npm run build` · `dist`) — موجودة في `vercel.json`.
+3. أضف متغيّر البيئة:
+   - `VITE_CONVEX_URL` = `https://kindred-falcon-584.convex.cloud`
+4. **Deploy**. سيعمل التطبيق مع نفس بيانات Convex الحالية.
+
+> للإنتاج الكامل (نشر backend منفصل): استخدم `npx convex deploy` واضبط `CONVEX_DEPLOY_KEY` وأمر البناء `npx convex deploy --cmd "npm run build"` في Vercel.
+
 ## 📁 ملاحظات
 - ملفّا Excel الأصليان (`mohamed shahin*.xlsx`) هما مصدر بيانات الأصناف الأولية.
 - `convex/_generated` مُولّدة يدويًا لتمكين البناء؛ سيُعيد `npx convex dev` توليدها مطابقة تلقائيًا.
