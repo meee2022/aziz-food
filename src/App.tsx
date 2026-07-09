@@ -5,6 +5,7 @@ import { api } from "../convex/_generated/api";
 import { useAuth } from "./lib/auth";
 import { setCurrency } from "./lib/format";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { Spinner } from "./components/ui";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -21,9 +22,17 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 
 function Protected({ children }: { children: JSX.Element }) {
-  const { user } = useAuth();
+  const { user, token, logout } = useAuth();
   const location = useLocation();
-  if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
+  // تحقّق من صلاحية الجلسة على الخادم (يعالج الجلسات المنتهية/غير الصالحة بدل الانهيار)
+  const me = useQuery(api.auth.me, user && token ? { token } : "skip");
+  useEffect(() => {
+    if (user && token && me === null) logout(); // جلسة غير صالحة → تسجيل خروج تلقائي
+  }, [me, user, token]);
+
+  if (!user || !token) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (me === undefined) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><Spinner /></div>;
+  if (me === null) return <Navigate to="/login" replace />;
   return <Layout>{children}</Layout>;
 }
 
