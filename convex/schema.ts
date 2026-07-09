@@ -27,7 +27,8 @@ export default defineSchema({
   // ── المستخدمون والصلاحيات ──
   users: defineTable({
     name: v.string(),
-    pin: v.string(), // رمز دخول مبسّط (يُستبدل بمزوّد مصادقة لاحقًا)
+    pin: v.string(), // كلمة السر
+    owner: v.optional(v.boolean()), // حساب المالك (Super Admin) — محميّ من الحذف/التعطيل
     role: v.union(
       v.literal("admin"),
       v.literal("sales"),

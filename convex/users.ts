@@ -13,7 +13,7 @@ export const list = adminQuery({
   args: {},
   handler: async (ctx: any) => {
     const users = await ctx.db.query("users").collect();
-    return users.map((u: any) => ({ id: u._id, name: u.name, role: u.role, active: u.active, hasPin: !!u.pin }));
+    return users.map((u: any) => ({ id: u._id, name: u.name, role: u.role, active: u.active, hasPin: !!u.pin, owner: !!u.owner }));
   },
 });
 
@@ -36,6 +36,9 @@ export const update = adminMutation({
   },
   handler: async (ctx: any, args: any) => {
     const { id, ...rest } = args;
+    const target = await ctx.db.get(id);
+    // حساب المالك لا يعدّله إلا هو نفسه
+    if (target?.owner && ctx.user.id !== id) throw new Error("لا يمكن تعديل حساب المالك");
     await ctx.db.patch(id, rest);
   },
 });
@@ -43,6 +46,8 @@ export const update = adminMutation({
 export const remove = adminMutation({
   args: { id: v.id("users") },
   handler: async (ctx: any, { id }: any) => {
+    const target = await ctx.db.get(id);
+    if (target?.owner) throw new Error("لا يمكن حذف حساب المالك");
     await ctx.db.patch(id, { active: false });
   },
 });

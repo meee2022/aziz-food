@@ -91,7 +91,7 @@ export default function Settings() {
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
-                <td style={{ fontWeight: 700 }}>{u.name}</td>
+                <td style={{ fontWeight: 700 }}>{u.name} {u.owner && <span className="pill badge-champion" style={{ marginInlineStart: 4 }}>👑 {t("مالك", "Owner")}</span>}</td>
                 <td><span className="pill badge-info">{t(ROLES.find((r) => r[0] === u.role)?.[1] ?? "", ROLES.find((r) => r[0] === u.role)?.[2] ?? "")}</span></td>
                 <td className="tabular text-muted">••••••</td>
                 <td>{u.active ? <span className="pill badge-success">{t("نشط", "Active")}</span> : <span className="pill badge-muted">{t("موقوف", "Off")}</span>}</td>
