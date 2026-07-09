@@ -48,19 +48,16 @@ export default function Login() {
           <div style={{ fontSize: 20, fontWeight: 900, color: "#fff" }}>{brand}</div>
           <div style={{ fontSize: 12, color: "var(--accent-light)" }}>{t("إدارة تجارة الخضروات والفواكه", "Fruits & Vegetables Trading")}</div>
         </div>
-        <label className="label" style={{ textAlign: "start" }}>{t("رمز الدخول (PIN)", "Login PIN")}</label>
+        <label className="label" style={{ textAlign: "start" }}>{t("كلمة المرور", "Password")}</label>
         <input
-          className="field tabular" type="password" inputMode="numeric" value={pin} autoFocus
+          className="field" type="password" value={pin} autoFocus autoComplete="current-password"
           onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder="••••" style={{ textAlign: "center", fontSize: 22, letterSpacing: 6 }}
+          placeholder={t("أدخل كلمة المرور", "Enter password")} style={{ textAlign: "center", fontSize: 18 }}
         />
         {error && <div className="pill badge-danger" style={{ marginTop: 12 }}><Icon name="alert" size={14} />{error}</div>}
         <button className="btn-primary" onClick={submit} disabled={loading || pin.length < 3} style={{ width: "100%", marginTop: 18, padding: 12 }}>
           {loading ? t("جارٍ الدخول…", "Signing in…") : t("دخول", "Sign in")}
         </button>
-        <div className="text-muted" style={{ fontSize: 11, marginTop: 18, lineHeight: 1.9 }}>
-          {t("تجريبي:", "Demo:")} <b>1234</b> {t("مدير", "Admin")} · <b>1111</b> {t("مبيعات", "Sales")} · <b>2222</b> {t("محاسب", "Accountant")}
-        </div>
       </div>
     </div>
   );

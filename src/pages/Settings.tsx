@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
+import { useAuth } from "../lib/auth";
 import { PageHeader, Icon, Modal, Spinner } from "../components/ui";
 
 const ROLES: [string, string, string][] = [
@@ -20,9 +21,12 @@ export default function Settings() {
   const createCat = useMutation(api.categories.create);
   const seed = useMutation(api.seed.run);
 
+  const { user } = useAuth();
   const [company, setCompany] = useState<Record<string, string> | null>(null);
   const [userModal, setUserModal] = useState<any>(null);
   const [seedMsg, setSeedMsg] = useState("");
+  const [pw1, setPw1] = useState(""); const [pw2, setPw2] = useState("");
+  const [pwMsg, setPwMsg] = useState("");
 
   if (settings === undefined || users === undefined) return <Spinner />;
   const s = company ?? settings;
@@ -31,6 +35,29 @@ export default function Settings() {
   return (
     <div className="animate-in">
       <PageHeader title={t("الإعدادات", "Settings")} />
+
+      {/* حسابي — تغيير كلمة السر */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="section-title" style={{ marginBottom: 6 }}>{t("حسابي — تغيير كلمة السر", "My account — change password")}</div>
+        <p className="text-muted" style={{ fontSize: 13, marginTop: 0 }}>
+          {t("أنت مسجّل الدخول باسم", "Signed in as")} <b>{user?.name}</b>. {t("غيّر كلمة السر إلى كلمة خاصة بك.", "Set your own private password.")}
+        </p>
+        {pwMsg && <div className="pill badge-success" style={{ marginBottom: 10 }}><Icon name="check" size={14} /> {pwMsg}</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12, maxWidth: 520 }}>
+          <div><label className="label">{t("كلمة السر الجديدة", "New password")}</label><input className="field" type="password" value={pw1} onChange={(e) => setPw1(e.target.value)} autoComplete="new-password" /></div>
+          <div><label className="label">{t("تأكيد كلمة السر", "Confirm password")}</label><input className="field" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" /></div>
+        </div>
+        <button className="btn-primary" style={{ marginTop: 14 }}
+          disabled={pw1.length < 4 || pw1 !== pw2 || !user}
+          onClick={async () => {
+            await updateUser({ id: user!.id as any, pin: pw1 });
+            setPw1(""); setPw2(""); setPwMsg(t("تم تغيير كلمة السر بنجاح", "Password changed successfully"));
+          }}>
+          <Icon name="check" size={16} /> {t("حفظ كلمة السر", "Save password")}
+        </button>
+        {pw1.length > 0 && pw1.length < 4 && <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>{t("كلمة السر 4 خانات على الأقل", "Password must be at least 4 characters")}</div>}
+        {pw2.length > 0 && pw1 !== pw2 && <div style={{ fontSize: 12, marginTop: 6, color: "var(--danger)" }}>{t("كلمتا السر غير متطابقتين", "Passwords do not match")}</div>}
+      </div>
 
       {/* بيانات الشركة */}
       <div className="card" style={{ marginBottom: 16 }}>
