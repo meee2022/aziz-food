@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 
-export type Role = "admin" | "sales" | "accountant" | "warehouse";
+export type Role = "admin" | "sales" | "accountant" | "warehouse" | "customer";
 export interface User {
   id: string;
   name: string;
   role: Role;
+  customerId?: string | null;
 }
 
 interface AuthCtx {
@@ -43,10 +44,11 @@ export const useAuth = () => useContext(Ctx);
 
 /** صلاحيات كل دور: أي أقسام يمكنه الوصول إليها. */
 export const ROLE_ACCESS: Record<Role, string[]> = {
-  admin: ["dashboard", "invoices", "invoice-new", "customers", "items", "prices", "priceLists", "purchases", "reports", "settings"],
-  sales: ["dashboard", "invoices", "invoice-new", "customers", "items"],
-  accountant: ["dashboard", "invoices", "customers", "reports", "payments"],
+  admin: ["dashboard", "invoices", "invoice-new", "orders", "customers", "items", "prices", "priceLists", "purchases", "reports", "settings"],
+  sales: ["dashboard", "invoices", "invoice-new", "orders", "customers", "items"],
+  accountant: ["dashboard", "invoices", "orders", "customers", "reports", "payments"],
   warehouse: ["items", "prices", "purchases"],
+  customer: [],
 };
 
 export function can(role: Role | undefined, section: string): boolean {

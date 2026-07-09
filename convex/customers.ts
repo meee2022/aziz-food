@@ -44,9 +44,14 @@ export const create = mutation({
     creditLimit: v.optional(v.number()),
     priceListId: v.optional(v.id("priceLists")),
     discountPct: v.optional(v.number()),
+    loginPin: v.optional(v.string()),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (args.loginPin) {
+      const clash = await ctx.db.query("customers").withIndex("by_loginPin", (q) => q.eq("loginPin", args.loginPin)).first();
+      if (clash) throw new Error("كلمة سر الدخول مستخدمة لعميل آخر");
+    }
     return await ctx.db.insert("customers", {
       ...args,
       balance: 0,
@@ -71,11 +76,16 @@ export const update = mutation({
     creditLimit: v.optional(v.number()),
     priceListId: v.optional(v.id("priceLists")),
     discountPct: v.optional(v.number()),
+    loginPin: v.optional(v.string()),
     notes: v.optional(v.string()),
     favorite: v.optional(v.boolean()),
     active: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...rest }) => {
+    if (rest.loginPin) {
+      const clash = await ctx.db.query("customers").withIndex("by_loginPin", (q) => q.eq("loginPin", rest.loginPin)).first();
+      if (clash && clash._id !== id) throw new Error("كلمة سر الدخول مستخدمة لعميل آخر");
+    }
     await ctx.db.patch(id, rest);
   },
 });

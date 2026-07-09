@@ -14,7 +14,7 @@ async function getSessionUser(ctx: any, token: string | undefined) {
   const s = await ctx.db.query("sessions").withIndex("by_token", (q: any) => q.eq("token", token)).first();
   if (!s) return null;
   if (Date.now() - s.createdAt > SESSION_MS) return null;
-  return { id: s.userId, name: s.name, role: s.role };
+  return { id: s.userId ?? s.customerId, name: s.name, role: s.role, customerId: s.customerId ?? null };
 }
 
 /** استعلام محميّ: يتطلب token صالح، ويحقن ctx.user. */
@@ -71,23 +71,59 @@ export function adminMutation(config: { args?: any; handler: (ctx: any, args: an
   });
 }
 
+/** استعلام محميّ للعميل فقط (بوابة الطلبات) — يحقن ctx.user.customerId. */
+export function customerQuery(config: { args?: any; handler: (ctx: any, args: any) => any }) {
+  return query({
+    args: { ...(config.args ?? {}), token: v.string() },
+    handler: async (ctx: any, args: any) => {
+      const { token, ...rest } = args;
+      const user = await getSessionUser(ctx, token);
+      if (!user || user.role !== "customer" || !user.customerId) throw new Error("غير مصرّح");
+      return config.handler({ ...ctx, user }, rest);
+    },
+  });
+}
+
+/** طفرة محميّة للعميل فقط. */
+export function customerMutation(config: { args?: any; handler: (ctx: any, args: any) => any }) {
+  return mutation({
+    args: { ...(config.args ?? {}), token: v.string() },
+    handler: async (ctx: any, args: any) => {
+      const { token, ...rest } = args;
+      const user = await getSessionUser(ctx, token);
+      if (!user || user.role !== "customer" || !user.customerId) throw new Error("غير مصرّح");
+      return config.handler({ ...ctx, user }, rest);
+    },
+  });
+}
+
 // ── دوال المصادقة العامة (بدون حماية) ──
 
-/** تسجيل الدخول: يتحقق من كلمة السر، ينشئ جلسة ويُرجع token. */
+/** تسجيل الدخول: موظف (users) أو عميل (customers.loginPin). ينشئ جلسة ويُرجع token. */
 export const signIn = mutation({
   args: { pin: v.string() },
   handler: async (ctx, { pin }) => {
+    const now = Date.now();
+    const mkToken = () => crypto.randomUUID() + "." + crypto.randomUUID();
+
+    // موظف
     const u = await ctx.db.query("users").withIndex("by_pin", (q) => q.eq("pin", pin)).first();
-    if (!u || !u.active) return null;
-    const token = crypto.randomUUID() + "." + crypto.randomUUID();
-    await ctx.db.insert("sessions", {
-      token,
-      userId: u._id,
-      name: u.name,
-      role: u.role,
-      createdAt: Date.now(),
-    });
-    return { token, user: { id: u._id, name: u.name, role: u.role } };
+    if (u && u.active) {
+      const token = mkToken();
+      await ctx.db.insert("sessions", { token, userId: u._id, name: u.name, role: u.role, createdAt: now });
+      return { token, user: { id: u._id, name: u.name, role: u.role, customerId: null } };
+    }
+
+    // عميل (بوابة الطلبات)
+    if (pin) {
+      const c = await ctx.db.query("customers").withIndex("by_loginPin", (q) => q.eq("loginPin", pin)).first();
+      if (c && c.active) {
+        const token = mkToken();
+        await ctx.db.insert("sessions", { token, customerId: c._id, name: c.name, role: "customer", createdAt: now });
+        return { token, user: { id: c._id, name: c.name, role: "customer", customerId: c._id } };
+      }
+    }
+    return null;
   },
 });
 

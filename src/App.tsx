@@ -20,23 +20,25 @@ import PriceLists from "./pages/PriceLists";
 import Purchases from "./pages/Purchases";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import Orders from "./pages/Orders";
+import CustomerPortal from "./pages/CustomerPortal";
 
+/** بوابة الجلسة: تتحقق من صلاحية الـ token وتعيد التوجيه للدخول عند الحاجة. */
 function Protected({ children }: { children: JSX.Element }) {
   const { user, token, logout } = useAuth();
   const location = useLocation();
-  // تحقّق من صلاحية الجلسة على الخادم (يعالج الجلسات المنتهية/غير الصالحة بدل الانهيار)
   const me = useQuery(api.auth.me, user && token ? { token } : "skip");
   useEffect(() => {
-    if (user && token && me === null) logout(); // جلسة غير صالحة → تسجيل خروج تلقائي
+    if (user && token && me === null) logout();
   }, [me, user, token]);
-
   if (!user || !token) return <Navigate to="/login" state={{ from: location }} replace />;
   if (me === undefined) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><Spinner /></div>;
   if (me === null) return <Navigate to="/login" replace />;
-  return <Layout>{children}</Layout>;
+  return children;
 }
 
-/** يحمّل العملة من الإعدادات — معزول حتى لا تُعطّل شاشة الدخول قبل نشر Convex. */
+const S = (el: JSX.Element) => <Protected><Layout>{el}</Layout></Protected>;
+
 function CurrencyLoader() {
   const settings = useQuery(api.settings.all, {});
   useEffect(() => {
@@ -46,26 +48,37 @@ function CurrencyLoader() {
 }
 
 export default function App() {
+  const { user } = useAuth();
+  const isCustomer = user?.role === "customer";
+
   return (
     <>
-    <ErrorBoundary fallback={null}><CurrencyLoader /></ErrorBoundary>
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/" element={<Protected><Dashboard /></Protected>} />
-      <Route path="/invoice/new" element={<Protected><InvoiceCreate /></Protected>} />
-      <Route path="/invoice/:id" element={<Protected><InvoiceView /></Protected>} />
-      <Route path="/invoice/:id/edit" element={<Protected><InvoiceCreate /></Protected>} />
-      <Route path="/invoices" element={<Protected><Invoices /></Protected>} />
-      <Route path="/customers" element={<Protected><Customers /></Protected>} />
-      <Route path="/customers/:id" element={<Protected><CustomerDetail /></Protected>} />
-      <Route path="/items" element={<Protected><Items /></Protected>} />
-      <Route path="/prices" element={<Protected><DailyPrices /></Protected>} />
-      <Route path="/price-lists" element={<Protected><PriceLists /></Protected>} />
-      <Route path="/purchases" element={<Protected><Purchases /></Protected>} />
-      <Route path="/reports" element={<Protected><Reports /></Protected>} />
-      <Route path="/settings" element={<Protected><Settings /></Protected>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      <ErrorBoundary fallback={null}><CurrencyLoader /></ErrorBoundary>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        {isCustomer ? (
+          // ── بوابة العميل ──
+          <Route path="/*" element={<Protected><CustomerPortal /></Protected>} />
+        ) : (
+          <>
+            <Route path="/" element={S(<Dashboard />)} />
+            <Route path="/invoice/new" element={S(<InvoiceCreate />)} />
+            <Route path="/invoice/:id" element={S(<InvoiceView />)} />
+            <Route path="/invoice/:id/edit" element={S(<InvoiceCreate />)} />
+            <Route path="/invoices" element={S(<Invoices />)} />
+            <Route path="/orders" element={S(<Orders />)} />
+            <Route path="/customers" element={S(<Customers />)} />
+            <Route path="/customers/:id" element={S(<CustomerDetail />)} />
+            <Route path="/items" element={S(<Items />)} />
+            <Route path="/prices" element={S(<DailyPrices />)} />
+            <Route path="/price-lists" element={S(<PriceLists />)} />
+            <Route path="/purchases" element={S(<Purchases />)} />
+            <Route path="/reports" element={S(<Reports />)} />
+            <Route path="/settings" element={S(<Settings />)} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </>
+        )}
+      </Routes>
     </>
   );
 }

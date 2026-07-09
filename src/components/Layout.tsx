@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useQuery } from "convex/react";
-import { useAuthedMutation } from "../lib/authedConvex";
+import { useAuthedMutation, useAuthedQuery } from "../lib/authedConvex";
 import { api } from "../../convex/_generated/api";
 import { Icon } from "./ui";
 import { useT, useLang } from "../lib/i18n";
@@ -13,6 +13,7 @@ const NAV: NavItem[] = [
   { to: "/", section: "dashboard", icon: "dashboard", ar: "لوحة التحكم", en: "Dashboard" },
   { to: "/invoice/new", section: "invoice-new", icon: "plus", ar: "فاتورة جديدة", en: "New Invoice" },
   { to: "/invoices", section: "invoices", icon: "invoice", ar: "الفواتير", en: "Invoices" },
+  { to: "/orders", section: "orders", icon: "clipboard", ar: "الطلبات", en: "Orders" },
   { to: "/customers", section: "customers", icon: "users", ar: "العملاء", en: "Customers" },
   { to: "/items", section: "items", icon: "box", ar: "الأصناف", en: "Items" },
   { to: "/prices", section: "prices", icon: "money", ar: "أسعار اليوم", en: "Daily Prices" },
@@ -23,7 +24,7 @@ const NAV: NavItem[] = [
 ];
 
 // أهم عناصر الشريط السفلي للجوال
-const MOBILE = ["dashboard", "invoice-new", "invoices", "customers", "items"];
+const MOBILE = ["dashboard", "orders", "invoice-new", "invoices", "customers"];
 
 export default function Layout({ children }: { children: ReactNode }) {
   const t = useT();
@@ -32,6 +33,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const settings = useQuery(api.settings.all, {});
   const signOut = useAuthedMutation(api.auth.signOut);
+  const pendingOrders = (useAuthedQuery(api.orders.pendingCount, {}) as number) ?? 0;
   const brand = lang === "ar" ? (settings?.companyName || "سوق الجملة") : (settings?.companyNameEn || "Wholesale");
   const items = NAV.filter((n) => can(user?.role, n.section));
   const mobileItems = items.filter((n) => MOBILE.includes(n.section)).slice(0, 5);
@@ -61,6 +63,9 @@ export default function Layout({ children }: { children: ReactNode }) {
               className={({ isActive }) => "nav-link" + (isActive ? " nav-link-active" : "")}>
               <Icon name={n.icon} size={19} />
               <span>{t(n.ar, n.en)}</span>
+              {n.section === "orders" && pendingOrders > 0 && (
+                <span style={{ marginInlineStart: "auto", background: "#e11d48", color: "#fff", fontSize: 11, fontWeight: 800, borderRadius: 999, minWidth: 20, height: 20, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 6px" }}>{pendingOrders}</span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -111,7 +116,10 @@ export default function Layout({ children }: { children: ReactNode }) {
         {mobileItems.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.to === "/"}
             className={({ isActive }) => "bnav" + (isActive ? " bnav-active" : "")}>
-            <Icon name={n.icon} size={21} />
+            <span style={{ position: "relative" }}>
+              <Icon name={n.icon} size={21} />
+              {n.section === "orders" && pendingOrders > 0 && <span style={{ position: "absolute", top: -4, insetInlineEnd: -6, background: "#e11d48", color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 999, minWidth: 15, height: 15, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{pendingOrders}</span>}
+            </span>
             <span style={{ fontSize: 10, fontWeight: 700 }}>{t(n.ar, n.en)}</span>
           </NavLink>
         ))}

@@ -25,7 +25,7 @@ export default function Login() {
     try {
       const res = await convex.mutation(api.auth.signIn, { pin });
       if (res) {
-        login(res.user, res.token);
+        login(res.user as any, res.token);
         navigate("/");
       } else {
         setError(t("كلمة المرور غير صحيحة", "Incorrect password"));

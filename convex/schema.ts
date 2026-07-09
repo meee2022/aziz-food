@@ -128,6 +128,7 @@ export default defineSchema({
     creditLimit: v.optional(v.number()),
     priceListId: v.optional(v.id("priceLists")),
     discountPct: v.optional(v.number()),
+    loginPin: v.optional(v.string()), // كلمة سر بوابة الطلبات للعميل
     balance: v.number(),           // مديونية العميل (موجب = مدين لنا)
     favorite: v.boolean(),
     active: v.boolean(),
@@ -135,7 +136,8 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_active", ["active"])
-    .index("by_favorite", ["favorite"]),
+    .index("by_favorite", ["favorite"])
+    .index("by_loginPin", ["loginPin"]),
 
   // ── الفواتير (مع لقطة ثابتة للأسطر) ──
   invoices: defineTable({
@@ -235,12 +237,49 @@ export default defineSchema({
     at: v.number(),
   }).index("by_entity", ["entity"]),
 
+  // ── طلبات العملاء (بوابة الطلبات) ──
+  orders: defineTable({
+    number: v.string(),               // ORD-000001
+    customerId: v.id("customers"),
+    customerName: v.string(),
+    date: v.string(),
+    status: v.union(
+      v.literal("pending"),           // بانتظار مراجعتك
+      v.literal("confirmed"),         // اعتُمد وتحوّل لفاتورة
+      v.literal("rejected"),          // مرفوض
+    ),
+    lines: v.array(
+      v.object({
+        itemId: v.optional(v.id("items")),
+        name: v.string(),
+        unit: v.string(),
+        qtyRequested: v.number(),     // ما طلبه العميل
+        qtyApproved: v.number(),      // ما اعتمدته أنت
+        available: v.boolean(),       // متاح/غير متاح
+        unitPrice: v.number(),
+        cost: v.number(),
+      }),
+    ),
+    note: v.optional(v.string()),     // ملاحظة العميل
+    ownerNote: v.optional(v.string()),// ملاحظتك عند المراجعة
+    invoiceId: v.optional(v.id("invoices")),
+    createdAt: v.number(),
+    reviewedBy: v.optional(v.string()),
+    reviewedAt: v.optional(v.number()),
+  })
+    .index("by_customer", ["customerId"])
+    .index("by_status", ["status"]),
+
   // ── جلسات الدخول (مصادقة على مستوى الخادم) ──
   sessions: defineTable({
     token: v.string(),
-    userId: v.id("users"),
+    userId: v.optional(v.id("users")),          // للموظفين
+    customerId: v.optional(v.id("customers")),  // لجلسات العملاء (بوابة الطلبات)
     name: v.string(),
-    role: v.union(v.literal("admin"), v.literal("sales"), v.literal("accountant"), v.literal("warehouse")),
+    role: v.union(
+      v.literal("admin"), v.literal("sales"), v.literal("accountant"),
+      v.literal("warehouse"), v.literal("customer"),
+    ),
     createdAt: v.number(),
   }).index("by_token", ["token"]),
 
