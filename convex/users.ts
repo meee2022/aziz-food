@@ -22,7 +22,8 @@ export const list = query({
   args: {},
   handler: async (ctx) => {
     const users = await ctx.db.query("users").collect();
-    return users.map((u) => ({ id: u._id, name: u.name, role: u.role, active: u.active, pin: u.pin }));
+    // لا تُرجع كلمة السر مطلقًا (أمان) — فقط علم يوضّح أنها مضبوطة
+    return users.map((u) => ({ id: u._id, name: u.name, role: u.role, active: u.active, hasPin: !!u.pin }));
   },
 });
 

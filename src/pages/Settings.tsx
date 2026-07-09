@@ -86,13 +86,13 @@ export default function Settings() {
           <button className="btn-secondary" onClick={() => setUserModal({})}><Icon name="plus" size={15} /> {t("مستخدم", "User")}</button>
         </div>
         <table className="data-table">
-          <thead><tr><th>{t("الاسم", "Name")}</th><th>{t("الدور", "Role")}</th><th>PIN</th><th>{t("الحالة", "Status")}</th><th></th></tr></thead>
+          <thead><tr><th>{t("الاسم", "Name")}</th><th>{t("الدور", "Role")}</th><th>{t("كلمة السر", "Password")}</th><th>{t("الحالة", "Status")}</th><th></th></tr></thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
                 <td style={{ fontWeight: 700 }}>{u.name}</td>
                 <td><span className="pill badge-info">{t(ROLES.find((r) => r[0] === u.role)?.[1] ?? "", ROLES.find((r) => r[0] === u.role)?.[2] ?? "")}</span></td>
-                <td className="tabular">{u.pin}</td>
+                <td className="tabular text-muted">••••••</td>
                 <td>{u.active ? <span className="pill badge-success">{t("نشط", "Active")}</span> : <span className="pill badge-muted">{t("موقوف", "Off")}</span>}</td>
                 <td><button className="btn-ghost btn-icon" onClick={() => setUserModal(u)}><Icon name="edit" size={15} /></button></td>
               </tr>
@@ -125,7 +125,11 @@ export default function Settings() {
       </div>
 
       {userModal && <UserModal user={userModal} onClose={() => setUserModal(null)} onSave={async (d: any) => {
-        if (userModal.id) await updateUser({ id: userModal.id, ...d }); else await createUser(d); setUserModal(null);
+        if (userModal.id) {
+          const { pin, ...rest } = d;
+          await updateUser({ id: userModal.id, ...rest, ...(pin ? { pin } : {}) }); // كلمة سر فارغة = عدم التغيير
+        } else await createUser(d);
+        setUserModal(null);
       }} />}
     </div>
   );
@@ -133,16 +137,18 @@ export default function Settings() {
 
 function UserModal({ user, onClose, onSave }: any) {
   const t = useT();
-  const [f, setF] = useState({ name: user.name ?? "", pin: user.pin ?? "", role: user.role ?? "sales", active: user.active ?? true });
+  const [f, setF] = useState({ name: user.name ?? "", pin: "", role: user.role ?? "sales", active: user.active ?? true });
+  const isEdit = !!user.id;
   return (
-    <Modal open title={user.id ? t("تعديل مستخدم", "Edit User") : t("مستخدم جديد", "New User")} onClose={onClose}>
+    <Modal open title={isEdit ? t("تعديل مستخدم", "Edit User") : t("مستخدم جديد", "New User")} onClose={onClose}>
       <div style={{ display: "grid", gap: 12 }}>
         <div><label className="label">{t("الاسم", "Name")}</label><input className="field" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></div>
-        <div><label className="label">{t("رمز الدخول PIN", "PIN")}</label><input className="field tabular" value={f.pin} onChange={(e) => setF({ ...f, pin: e.target.value })} /></div>
+        <div><label className="label">{isEdit ? t("كلمة سر جديدة (اتركها فارغة لعدم التغيير)", "New password (leave empty to keep)") : t("كلمة السر", "Password")}</label>
+          <input className="field" type="password" value={f.pin} onChange={(e) => setF({ ...f, pin: e.target.value })} autoComplete="new-password" /></div>
         <div><label className="label">{t("الدور", "Role")}</label>
           <select className="field" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{ROLES.map((r) => <option key={r[0]} value={r[0]}>{t(r[1], r[2])}</option>)}</select></div>
-        {user.id && <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}><input type="checkbox" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} /> {t("نشط", "Active")}</label>}
-        <button className="btn-primary" disabled={!f.name || f.pin.length < 3} onClick={() => onSave(f)}><Icon name="check" size={16} /> {t("حفظ", "Save")}</button>
+        {isEdit && <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}><input type="checkbox" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} /> {t("نشط", "Active")}</label>}
+        <button className="btn-primary" disabled={!f.name || (!isEdit && f.pin.length < 4) || (f.pin.length > 0 && f.pin.length < 4)} onClick={() => onSave(f)}><Icon name="check" size={16} /> {t("حفظ", "Save")}</button>
       </div>
     </Modal>
   );
