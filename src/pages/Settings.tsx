@@ -10,6 +10,14 @@ const ROLES: [string, string, string][] = [
   ["accountant", "محاسب", "Accountant"], ["warehouse", "مخزن", "Warehouse"],
 ];
 
+/** استخراج رسالة الخطأ العربية النظيفة من خطأ Convex. */
+export function cleanErr(e: any): string {
+  const m = String(e?.message ?? e ?? "");
+  const match = m.match(/Uncaught Error:\s*([^\n]+)/);
+  const line = match ? match[1] : m.split("\n")[0];
+  return line.replace(/\s+at\s.*$/, "").trim();
+}
+
 export default function Settings() {
   const t = useT(); const { lang } = useLang();
   const settings = useQuery(api.settings.all, {});
@@ -95,7 +103,11 @@ export default function Settings() {
                 <td><span className="pill badge-info">{t(ROLES.find((r) => r[0] === u.role)?.[1] ?? "", ROLES.find((r) => r[0] === u.role)?.[2] ?? "")}</span></td>
                 <td className="tabular text-muted">••••••</td>
                 <td>{u.active ? <span className="pill badge-success">{t("نشط", "Active")}</span> : <span className="pill badge-muted">{t("موقوف", "Off")}</span>}</td>
-                <td><button className="btn-ghost btn-icon" onClick={() => setUserModal(u)}><Icon name="edit" size={15} /></button></td>
+                <td>
+                  {u.owner && user?.id !== u.id
+                    ? <span title={t("حساب المالك محميّ — يُدار من أمر الطوارئ على جهازك", "Owner account is protected — managed via the break-glass command")} className="text-muted" style={{ fontSize: 16 }}>🔒</span>
+                    : <button className="btn-ghost btn-icon" onClick={() => setUserModal(u)}><Icon name="edit" size={15} /></button>}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -126,11 +138,15 @@ export default function Settings() {
       </div>
 
       {userModal && <UserModal user={userModal} onClose={() => setUserModal(null)} onSave={async (d: any) => {
-        if (userModal.id) {
-          const { pin, ...rest } = d;
-          await updateUser({ id: userModal.id, ...rest, ...(pin ? { pin } : {}) }); // كلمة سر فارغة = عدم التغيير
-        } else await createUser(d);
-        setUserModal(null);
+        try {
+          if (userModal.id) {
+            const { pin, ...rest } = d;
+            await updateUser({ id: userModal.id, ...rest, ...(pin ? { pin } : {}) }); // كلمة سر فارغة = عدم التغيير
+          } else await createUser(d);
+          setUserModal(null);
+        } catch (e: any) {
+          alert(cleanErr(e) || t("تعذّر الحفظ", "Could not save"));
+        }
       }} />}
     </div>
   );
