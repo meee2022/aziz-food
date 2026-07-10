@@ -105,7 +105,6 @@ export function CustomerModal({ customer, lists, onClose, onSave }: any) {
     address: customer.address ?? "", area: customer.area ?? "", contactPerson: customer.contactPerson ?? "",
     paymentMethod: customer.paymentMethod ?? "credit", creditLimit: customer.creditLimit ?? 0,
     priceListId: customer.priceListId ?? "", discountPct: customer.discountPct ?? 0, notes: customer.notes ?? "",
-    loginPin: customer.loginPin ?? "",
   });
   const set = (k: string, v: any) => setF({ ...f, [k]: v });
   return (
@@ -127,12 +126,15 @@ export function CustomerModal({ customer, lists, onClose, onSave }: any) {
             <option value="">{t("الافتراضي", "Default")}</option>{lists.map((l: any) => <option key={l._id} value={l._id}>{lang === "ar" ? l.nameAr : l.nameEn}</option>)}
           </select></div>
         <div><label className="label">{t("خصم خاص %", "Discount %")}</label><NumField value={f.discountPct} onChange={(n) => set("discountPct", n)} /></div>
-        <div style={{ gridColumn: "1 / -1" }}><label className="label">{t("🔑 كلمة سر دخول العميل لبوابة الطلبات (اختياري)", "🔑 Customer order-portal password (optional)")}</label>
-          <input className="field" value={f.loginPin} onChange={(e) => set("loginPin", e.target.value)} placeholder={t("اتركها فارغة لتعطيل الدخول", "leave empty to disable login")} style={{ direction: "ltr", textAlign: "start" }} /></div>
         <div style={{ gridColumn: "1 / -1" }}><label className="label">{t("ملاحظات", "Notes")}</label><input className="field" value={f.notes} onChange={(e) => set("notes", e.target.value)} /></div>
       </div>
+      {customer._id && (
+        <div className="text-muted" style={{ fontSize: 12, marginTop: 10 }}>
+          🔑 {t("دخول العميل لبوابة الطلبات يُدار من صفحة العميل.", "Portal access is managed from the customer page.")}
+        </div>
+      )}
       <button className="btn-primary" disabled={!f.name} style={{ marginTop: 14, width: "100%" }}
-        onClick={() => onSave({ ...f, priceListId: f.priceListId || undefined, creditLimit: f.creditLimit || undefined, discountPct: f.discountPct || undefined, loginPin: f.loginPin || undefined })}>
+        onClick={() => onSave({ ...f, priceListId: f.priceListId || undefined, creditLimit: f.creditLimit || undefined, discountPct: f.discountPct || undefined })}>
         <Icon name="check" size={16} /> {t("حفظ", "Save")}
       </button>
     </Modal>

@@ -63,6 +63,8 @@ export default function CustomerDetail() {
         {c.contactPerson ? <span className="pill badge-muted" style={{ marginInlineStart: 6 }}>{c.contactPerson}</span> : null}
       </div>}
 
+      {user?.role === "admin" && <PortalAccess customerId={cid} customer={c} />}
+
       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
         <button className={tab === "statement" ? "btn-primary" : "btn-ghost"} onClick={() => setTab("statement")}>{t("كشف الحساب", "Statement")}</button>
         <button className={tab === "prices" ? "btn-primary" : "btn-ghost"} onClick={() => setTab("prices")}>{t("الأسعار الخاصة", "Special Prices")}</button>
@@ -92,6 +94,121 @@ export default function CustomerDetail() {
 
       {payOpen && <PaymentModal customerId={cid} defaultAmount={st.balance > 0 ? st.balance : 0} onClose={() => setPayOpen(false)} />}
       {editPay && <PaymentModal customerId={cid} payment={editPay} onClose={() => setEditPay(null)} />}
+    </div>
+  );
+}
+
+/** حروف وأرقام بلا المتشابهات (0/O، 1/I/l) حتى يقرأها العميل من رسالة واتساب بلا لبس. */
+const PW_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const makePassword = () =>
+  Array.from(crypto.getRandomValues(new Uint32Array(8)), (n) => PW_CHARS[n % PW_CHARS.length]).join("");
+
+/** بوابة طلبات العميل: تعيين كلمة السر، إرسالها له، أو إلغاء دخوله. */
+function PortalAccess({ customerId, customer }: { customerId: any; customer: any }) {
+  const t = useT();
+  const current = useQuery(api.customers.portalPassword, { id: customerId });
+  const setPassword = useMutation(api.customers.setPortalPassword);
+
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const portalUrl = `${window.location.origin}/login`;
+  const enabled = !!current;
+
+  const save = async (pw: string | undefined) => {
+    setBusy(true); setErr("");
+    try {
+      await setPassword({ id: customerId, password: pw });
+      setDraft("");
+    } catch (e: any) {
+      setErr(String(e?.message ?? e).replace(/^.*Error:\s*/s, "").split("\n")[0]);
+    } finally { setBusy(false); }
+  };
+
+  const message = () =>
+    [`*${customer.name}*`,
+     t("تقدر تطلب من موقعنا مباشرة:", "You can order directly from our site:"),
+     portalUrl, "",
+     `${t("كلمة السر", "Password")}: ${current}`].join("\n");
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(message());
+    setCopied(true); setTimeout(() => setCopied(false), 1800);
+  };
+
+  const sendWhatsapp = () => {
+    const phone = waPhone(customer.phone);
+    if (!phone) { alert(t("لا يوجد رقم هاتف لهذا العميل", "No phone number for this customer")); return; }
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message())}`, "_blank");
+  };
+
+  return (
+    <div className="card" style={{ marginBottom: 14, padding: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div className="icon-orb icon-orb-primary" style={{ width: 34, height: 34 }}><Icon name="cart" size={16} /></div>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={{ fontWeight: 800, fontSize: 14 }}>{t("بوابة الطلبات", "Order portal")}</div>
+          <div className="text-muted" style={{ fontSize: 12 }}>
+            {enabled
+              ? t("العميل يقدر يدخل ويطلب بنفسه", "The customer can sign in and order")
+              : t("الدخول غير مفعّل — عيّن كلمة سر ليطلب بنفسه", "Disabled — set a password to let them order")}
+          </div>
+        </div>
+        <span className={"pill " + (enabled ? "badge-success" : "badge-muted")}>
+          {enabled ? t("مفعّلة", "Enabled") : t("غير مفعّلة", "Disabled")}
+        </span>
+        <button className="btn-ghost" onClick={() => { setOpen((o) => !o); setErr(""); }}>
+          <Icon name={open ? "x" : "settings"} size={15} /> {open ? t("إغلاق", "Close") : t("إدارة", "Manage")}
+        </button>
+      </div>
+
+      {open && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--border)", display: "grid", gap: 10 }}>
+          <div>
+            <label className="label">{t("رابط الدخول", "Sign-in link")}</label>
+            <div className="field" style={{ direction: "ltr", textAlign: "start", background: "var(--surface)", fontSize: 13 }}>{portalUrl}</div>
+          </div>
+
+          <div>
+            <label className="label">{enabled ? t("كلمة السر الحالية", "Current password") : t("كلمة السر", "Password")}</label>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <input className="field tabular" value={draft || current || ""} onChange={(e) => setDraft(e.target.value)}
+                placeholder={t("4 أحرف على الأقل", "at least 4 characters")}
+                style={{ direction: "ltr", textAlign: "start", flex: "1 1 180px", fontWeight: 700, letterSpacing: 1 }} />
+              <button className="btn-ghost" onClick={() => setDraft(makePassword())}>{t("توليد", "Generate")}</button>
+              <button className="btn-primary" disabled={busy || !draft || draft === current} onClick={() => save(draft)}>
+                <Icon name="check" size={15} /> {enabled ? t("تغيير", "Change") : t("تفعيل", "Enable")}
+              </button>
+            </div>
+          </div>
+
+          {err && <div className="pill badge-danger" style={{ padding: "8px 12px" }}><Icon name="alert" size={14} /> {err}</div>}
+
+          {enabled && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button className="btn-secondary" onClick={sendWhatsapp} disabled={!customer.phone}>
+                <Icon name="whatsapp" size={15} /> {t("إرسال للعميل", "Send to customer")}
+              </button>
+              <button className="btn-ghost" onClick={copy}>
+                <Icon name={copied ? "check" : "copy"} size={15} /> {copied ? t("تم النسخ", "Copied") : t("نسخ", "Copy")}
+              </button>
+              <div style={{ flex: 1 }} />
+              <button className="btn-danger" disabled={busy}
+                onClick={() => window.confirm(t("إلغاء دخول العميل للبوابة؟", "Disable portal access?")) && save(undefined)}>
+                <Icon name="x" size={15} /> {t("إلغاء الدخول", "Disable")}
+              </button>
+            </div>
+          )}
+
+          <div className="text-muted" style={{ fontSize: 11.5 }}>
+            {t("تغيير كلمة السر أو إلغاؤها يُخرج العميل فورًا من أي جهاز داخل منه.",
+               "Changing or disabling the password signs the customer out everywhere.")}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,16 @@
-import { authQuery as query, authMutation as mutation } from "./auth";
+import { authQuery as query, authMutation as mutation, adminQuery, adminMutation } from "./auth";
 import { v } from "convex/values";
 import { effectivePrice, todayStr } from "./helpers";
+
+/**
+ * كلمة سر بوابة الطلبات لا تخرج أبدًا من هذه الدوال:
+ * جلسة العميل تستدعي نفس authQuery، فلو أعدنا المستند كما هو لقرأ كل عميل كلمات سر الباقين.
+ * تُقرأ عبر portalPassword (للمدير فقط).
+ */
+function publicCustomer<T extends { loginPin?: string }>(c: T) {
+  const { loginPin, ...safe } = c;
+  return { ...safe, hasPortal: !!loginPin };
+}
 
 const customerType = v.union(
   v.literal("restaurant"),
@@ -21,14 +31,17 @@ export const list = query({
     const lists = await ctx.db.query("priceLists").collect();
     const listMap = new Map(lists.map((l) => [l._id, l]));
     return rows
-      .map((c) => ({ ...c, priceList: c.priceListId ? listMap.get(c.priceListId) ?? null : null }))
+      .map((c) => ({ ...publicCustomer(c), priceList: c.priceListId ? listMap.get(c.priceListId) ?? null : null }))
       .sort((a, b) => Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name));
   },
 });
 
 export const get = query({
   args: { id: v.id("customers") },
-  handler: async (ctx, { id }) => ctx.db.get(id),
+  handler: async (ctx, { id }) => {
+    const c = await ctx.db.get(id);
+    return c ? publicCustomer(c) : null;
+  },
 });
 
 export const create = mutation({
@@ -44,14 +57,9 @@ export const create = mutation({
     creditLimit: v.optional(v.number()),
     priceListId: v.optional(v.id("priceLists")),
     discountPct: v.optional(v.number()),
-    loginPin: v.optional(v.string()),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    if (args.loginPin) {
-      const clash = await ctx.db.query("customers").withIndex("by_loginPin", (q) => q.eq("loginPin", args.loginPin)).first();
-      if (clash) throw new Error("كلمة سر الدخول مستخدمة لعميل آخر");
-    }
     return await ctx.db.insert("customers", {
       ...args,
       balance: 0,
@@ -76,17 +84,44 @@ export const update = mutation({
     creditLimit: v.optional(v.number()),
     priceListId: v.optional(v.id("priceLists")),
     discountPct: v.optional(v.number()),
-    loginPin: v.optional(v.string()),
     notes: v.optional(v.string()),
     favorite: v.optional(v.boolean()),
     active: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...rest }) => {
-    if (rest.loginPin) {
-      const clash = await ctx.db.query("customers").withIndex("by_loginPin", (q) => q.eq("loginPin", rest.loginPin)).first();
-      if (clash && clash._id !== id) throw new Error("كلمة سر الدخول مستخدمة لعميل آخر");
-    }
     await ctx.db.patch(id, rest);
+  },
+});
+
+/** كلمة سر بوابة الطلبات — للمدير فقط. */
+export const portalPassword = adminQuery({
+  args: { id: v.id("customers") },
+  handler: async (ctx, { id }) => {
+    const c = await ctx.db.get(id);
+    return c?.loginPin ?? null;
+  },
+});
+
+/** تعيين/تغيير/إلغاء كلمة سر بوابة الطلبات — للمدير فقط. */
+export const setPortalPassword = adminMutation({
+  args: { id: v.id("customers"), password: v.optional(v.string()) },
+  handler: async (ctx, { id, password }) => {
+    const pw = password?.trim();
+
+    if (pw) {
+      if (pw.length < 4) throw new Error("كلمة السر يجب أن تكون 4 أحرف على الأقل");
+      // كلمة السر هي المُعرِّف الوحيد عند الدخول، فلا يجوز تكرارها بين عميل وآخر
+      const clash = await ctx.db.query("customers").withIndex("by_loginPin", (q) => q.eq("loginPin", pw)).first();
+      if (clash && clash._id !== id) throw new Error("كلمة السر مستخدمة لعميل آخر — اختر غيرها");
+      const staff = await ctx.db.query("users").withIndex("by_pin", (q) => q.eq("pin", pw)).first();
+      if (staff) throw new Error("كلمة السر مستخدمة لحساب موظف — اختر غيرها");
+    }
+
+    await ctx.db.patch(id, { loginPin: pw || undefined });
+
+    // أنهِ جلسات العميل القديمة: تغيير كلمة السر أو إلغاؤها يجب أن يُخرجه فورًا
+    const sessions = await ctx.db.query("sessions").withIndex("by_customer", (q) => q.eq("customerId", id)).collect();
+    for (const s of sessions) await ctx.db.delete(s._id);
   },
 });
 
@@ -279,7 +314,7 @@ export const statement = query({
     });
 
     return {
-      customer,
+      customer: customer ? publicCustomer(customer) : null,
       totalInvoiced,
       totalPaid,
       balance: totalInvoiced - totalPaid,

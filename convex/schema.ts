@@ -295,7 +295,8 @@ export default defineSchema({
       v.literal("warehouse"), v.literal("customer"),
     ),
     createdAt: v.number(),
-  }).index("by_token", ["token"]),
+  }).index("by_token", ["token"])
+    .index("by_customer", ["customerId"]),
 
   // ── عدّادات (ترقيم الفواتير) ──
   counters: defineTable({
