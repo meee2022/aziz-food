@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { money, num, formatDate } from "../lib/format";
-import { PageHeader, Icon, Modal, Spinner, Empty } from "../components/ui";
+import { PageHeader, Icon, Modal, Spinner, Empty, NumField } from "../components/ui";
 
 const STATUS: Record<string, [string, string, string]> = {
   pending: ["قيد المراجعة", "Pending", "badge-warning"],
@@ -114,7 +114,7 @@ function ReviewModal({ order, onClose }: any) {
                 <td className="tabular">{num(l.qtyRequested)}</td>
                 <td>
                   {isPending
-                    ? <input className="field tabular" type="number" min="0" step="any" value={l.qtyApproved} disabled={!l.available} onChange={(e) => setLine(i, { qtyApproved: Number(e.target.value) })} style={{ padding: "5px 8px", width: 80 }} />
+                    ? <NumField value={l.qtyApproved} disabled={!l.available} onChange={(n) => setLine(i, { qtyApproved: n })} style={{ padding: "5px 8px", width: 80 }} />
                     : <span className="tabular">{num(l.qtyApproved)}</span>}
                 </td>
                 <td className="tabular">{money(l.unitPrice, false)}</td>

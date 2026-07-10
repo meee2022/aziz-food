@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, formatDate, today } from "../lib/format";
-import { PageHeader, Icon, Modal, Spinner, Empty } from "../components/ui";
+import { PageHeader, Icon, Modal, Spinner, Empty, NumField } from "../components/ui";
 
 export default function Purchases() {
   const t = useT(); const { lang } = useLang();
@@ -64,8 +64,8 @@ function PurchaseModal({ items, onClose, onSave }: any) {
             <option value="">—</option>{items.map((it: any) => <option key={it._id} value={it._id}>{lang === "ar" ? (it.nameAr ?? it.nameEn) : it.nameEn}</option>)}
           </select></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <div><label className="label">{t("الكمية", "Qty")}</label><input className="field tabular" type="number" value={f.qty} onChange={(e) => setF({ ...f, qty: Number(e.target.value) })} /></div>
-          <div><label className="label">{t("سعر الشراء", "Cost")}</label><input className="field tabular" type="number" value={f.cost} onChange={(e) => setF({ ...f, cost: Number(e.target.value) })} /></div>
+          <div><label className="label">{t("الكمية", "Qty")}</label><NumField value={f.qty} onChange={(n) => setF({ ...f, qty: n })} /></div>
+          <div><label className="label">{t("سعر الشراء", "Cost")}</label><NumField value={f.cost} onChange={(n) => setF({ ...f, cost: n })} /></div>
         </div>
         <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
           <input type="checkbox" checked={f.updateCostPrice} onChange={(e) => setF({ ...f, updateCostPrice: e.target.checked })} />

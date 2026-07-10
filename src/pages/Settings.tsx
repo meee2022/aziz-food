@@ -4,7 +4,7 @@ import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "..
 import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
-import { PageHeader, Icon, Modal, Spinner } from "../components/ui";
+import { PageHeader, Icon, Modal, Spinner, normalizeNum } from "../components/ui";
 import { BASE_UNITS, parseCustomUnits } from "../lib/units";
 
 const ROLES: [string, string, string][] = [
@@ -89,7 +89,7 @@ export default function Settings() {
           <div><label className="label">{t("العملة", "Currency")}</label><input className="field" value={s.currency ?? "ر.ق"} onChange={(e) => setS("currency", e.target.value)} /></div>
           <div style={{ gridColumn: "1 / -1" }}><label className="label">{t("العنوان (عربي)", "Address (AR)")}</label><input className="field" value={s.addressAr ?? ""} onChange={(e) => setS("addressAr", e.target.value)} /></div>
           <div style={{ gridColumn: "1 / -1" }}><label className="label">{t("العنوان (إنجليزي)", "Address (EN)")}</label><input className="field" value={s.addressEn ?? ""} onChange={(e) => setS("addressEn", e.target.value)} /></div>
-          <div><label className="label">{t("الضريبة الافتراضية %", "Default tax %")}</label><input className="field tabular" type="number" value={s.taxPct ?? "0"} onChange={(e) => setS("taxPct", e.target.value)} /></div>
+          <div><label className="label">{t("الضريبة الافتراضية %", "Default tax %")}</label><input className="field tabular" inputMode="decimal" dir="ltr" value={s.taxPct ?? "0"} onChange={(e) => setS("taxPct", normalizeNum(e.target.value))} /></div>
         </div>
         <button className="btn-primary" style={{ marginTop: 14 }} disabled={!company} onClick={async () => {
           for (const [k, v] of Object.entries(company!)) await setSetting({ key: k, value: String(v) });

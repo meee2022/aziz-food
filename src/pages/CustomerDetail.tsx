@@ -5,7 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, num, formatDate, today, waPhone } from "../lib/format";
-import { PageHeader, Icon, Modal, Spinner, Empty } from "../components/ui";
+import { PageHeader, Icon, Modal, Spinner, Empty, NumField, parseNum, normalizeNum } from "../components/ui";
 import { CUSTOMER_TYPES } from "./Customers";
 import { useUnits, parseCustomUnits, BASE_UNITS } from "../lib/units";
 
@@ -148,7 +148,7 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
     <Modal open title={isEdit ? t("تعديل دفعة", "Edit Payment") : t("تسجيل دفعة", "Add Payment")} onClose={onClose}>
       <div style={{ display: "grid", gap: 12 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 12 }}>
-          <div><label className="label">{t("المبلغ", "Amount")}</label><input className="field tabular" type="number" autoFocus value={amount} onChange={(e) => setAmount(Number(e.target.value))} style={{ fontSize: 18, fontWeight: 800 }} /></div>
+          <div><label className="label">{t("المبلغ", "Amount")}</label><NumField autoFocus value={amount} onChange={setAmount} style={{ fontSize: 18, fontWeight: 800 }} /></div>
           <div><label className="label">{t("طريقة الدفع", "Method")}</label>
             <select className="field" value={method} onChange={(e) => setMethod(e.target.value)}>
               <option value="cash">{t("نقدي", "Cash")}</option><option value="transfer">{t("تحويل", "Transfer")}</option><option value="card">{t("بطاقة", "Card")}</option>
@@ -169,7 +169,7 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
                   <input type="checkbox" checked={on} onChange={() => toggle(inv)} />
                   <span style={{ fontWeight: 700, fontSize: 13, minWidth: 92 }} className="tabular">{inv.number}</span>
                   <span className="text-muted" style={{ fontSize: 12, flex: 1 }}>{t("المتبقي", "Rem")}: {money(inv.remaining, false)}</span>
-                  <input className="field tabular" type="number" disabled={!on} value={on ? allocs[inv._id] : ""} placeholder="—" onChange={(e) => setAlloc(inv._id, Number(e.target.value))} style={{ width: 96, padding: "5px 8px" }} />
+                  <NumField disabled={!on} value={on ? allocs[inv._id] : ""} placeholder="—" onChange={(n) => setAlloc(inv._id, n)} style={{ width: 96, padding: "5px 8px" }} />
                 </div> ); })}
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 12.5, fontWeight: 700 }}>
@@ -253,8 +253,8 @@ function SpecialPrices({ customerId, customers, copyFrom, setCopyFrom, onCopy }:
                   <td className="tabular" style={{ fontWeight: 700 }}>{money(p.sell, false)}</td>
                   <td><span className={"pill " + (p.source === "customer" ? "badge-champion" : "badge-muted")}>{sourceLabel[p.source]}</span></td>
                   <td>
-                    <input className="field tabular" type="number" placeholder="—" defaultValue={customPrice ?? ""}
-                      onBlur={(e) => { const v = e.target.value.trim(); setPrice({ customerId, itemId: p.itemId, price: v === "" ? undefined : Number(v), unit: unitOverride }); }}
+                    <input className="field tabular" inputMode="decimal" dir="ltr" placeholder="—" defaultValue={customPrice ?? ""}
+                      onBlur={(e) => { const v = normalizeNum(e.target.value); setPrice({ customerId, itemId: p.itemId, price: v === "" ? undefined : parseNum(v), unit: unitOverride }); }}
                       style={{ padding: "6px 8px" }} />
                   </td>
                 </tr>

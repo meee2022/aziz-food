@@ -6,7 +6,7 @@ import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, num, today } from "../lib/format";
-import { PageHeader, Icon, Spinner, Empty } from "../components/ui";
+import { PageHeader, Icon, Spinner, Empty, NumField } from "../components/ui";
 import { useUnits } from "../lib/units";
 
 interface Line { itemId?: string; name: string; unit: string; qty: number; unitPrice: number; cost: number; }
@@ -277,8 +277,8 @@ export default function InvoiceCreate() {
                         <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}>
                           <button type="button" title={t("إنقاص", "Decrease")} onClick={() => setPickQtyOf(p.itemId, q - stepDown(q))}
                             style={{ width: 24, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", fontWeight: 800, fontSize: 15, lineHeight: 1 }}>−</button>
-                          <input className="tabular" type="number" min="0" step="any" value={q}
-                            onChange={(e) => setPickQtyOf(p.itemId, Number(e.target.value))}
+                          <NumField className="tabular" value={q}
+                            onChange={(n) => setPickQtyOf(p.itemId, n)}
                             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(p, pickQtyOf(p.itemId)); } }}
                             style={{ width: 50, height: 26, textAlign: "center", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", fontSize: 12, fontWeight: 700, color: "var(--ink)" }} />
                           <button type="button" title={t("زيادة", "Increase")} onClick={() => setPickQtyOf(p.itemId, q + stepUp(q))}
@@ -338,11 +338,11 @@ export default function InvoiceCreate() {
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
                           <button type="button" className="btn-ghost" title={t("إنقاص", "Decrease")} onClick={() => setLine(i, { qty: Math.max(0, r2(l.qty - stepDown(l.qty))) })} style={{ padding: 0, width: 30, height: 34, minWidth: 30, fontSize: 20, fontWeight: 800, lineHeight: 1 }}>−</button>
-                          <input className="field tabular" type="number" step="any" min="0" value={l.qty} onChange={(e) => setLine(i, { qty: Number(e.target.value) })} style={{ padding: "6px 4px", width: 58, textAlign: "center" }} />
+                          <NumField value={l.qty} onChange={(n) => setLine(i, { qty: n })} style={{ padding: "6px 4px", width: 58, textAlign: "center" }} />
                           <button type="button" className="btn-ghost" title={t("زيادة", "Increase")} onClick={() => setLine(i, { qty: r2(l.qty + stepUp(l.qty)) })} style={{ padding: 0, width: 30, height: 34, minWidth: 30, fontSize: 18, fontWeight: 800, lineHeight: 1 }}>+</button>
                         </div>
                       </td>
-                      <td><input className="field tabular" type="number" step="0.25" value={l.unitPrice} onChange={(e) => setLine(i, { unitPrice: Number(e.target.value) })} style={{ padding: "6px 8px", width: 96, color: below ? "var(--danger)" : undefined, fontWeight: 700 }} /></td>
+                      <td><NumField value={l.unitPrice} onChange={(n) => setLine(i, { unitPrice: n })} style={{ padding: "6px 8px", width: 96, color: below ? "var(--danger)" : undefined, fontWeight: 700 }} /></td>
                       <td className="tabular" style={{ fontWeight: 800 }}>{money(l.qty * l.unitPrice, false)}</td>
                       <td><button className="btn-ghost btn-icon" onClick={() => removeLine(i)}><Icon name="trash" size={15} /></button></td>
                     </tr>
@@ -369,13 +369,13 @@ export default function InvoiceCreate() {
                   <div>
                     <label className="label">{t("الخصم", "Discount")}</label>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <input className="field tabular" type="number" value={discountValue} onChange={(e) => setDiscountValue(Number(e.target.value))} />
+                      <NumField value={discountValue} onChange={setDiscountValue} />
                       <select className="field" style={{ width: 70 }} value={discountType} onChange={(e) => setDiscountType(e.target.value as any)}>
                         <option value="amount">{money(0, true).split(" ")[1] || "$"}</option><option value="percent">%</option>
                       </select>
                     </div>
                   </div>
-                  <div><label className="label">{t("الضريبة %", "Tax %")}</label><input className="field tabular" type="number" value={taxPct} onChange={(e) => setTaxPct(Number(e.target.value))} /></div>
+                  <div><label className="label">{t("الضريبة %", "Tax %")}</label><NumField value={taxPct} onChange={setTaxPct} /></div>
                   <div style={{ gridColumn: "1 / -1" }}><label className="label">{t("ملاحظات", "Notes")}</label><input className="field" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("ملاحظة داخل الفاتورة…", "Invoice note…")} /></div>
                 </div>
 

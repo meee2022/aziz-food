@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, num, formatDate } from "../lib/format";
-import { Icon, Spinner, Empty } from "../components/ui";
+import { Icon, Spinner, Empty, NumField } from "../components/ui";
 
 const STATUS: Record<string, [string, string, string]> = {
   pending: ["قيد المراجعة", "Pending review", "badge-warning"],
@@ -120,7 +120,7 @@ function NewOrder() {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <button type="button" className="btn-ghost" onClick={() => set(p.itemId, q - (q <= 1 ? 0.1 : 1))} style={{ padding: 0, width: 34, height: 34, minWidth: 34, fontSize: 20, fontWeight: 800 }}>−</button>
-                <input className="field tabular" type="number" min="0" step="any" value={q} onChange={(e) => set(p.itemId, Number(e.target.value))} style={{ padding: "6px 4px", textAlign: "center" }} />
+                <NumField value={q} onChange={(n) => set(p.itemId, n)} style={{ padding: "6px 4px", textAlign: "center" }} />
                 <button type="button" className="btn-ghost" onClick={() => set(p.itemId, q + (q < 1 ? 0.1 : 1))} style={{ padding: 0, width: 34, height: 34, minWidth: 34, fontSize: 18, fontWeight: 800 }}>+</button>
               </div>
             </div>

@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { num, today } from "../lib/format";
-import { PageHeader, Icon, Spinner, Empty } from "../components/ui";
+import { PageHeader, Icon, Spinner, Empty, NumField } from "../components/ui";
 
 interface Row { itemId: string; nameEn: string; nameAr?: string; unit: string; cost: number; sell: number; updatedToday: boolean; dirty?: boolean; }
 
@@ -87,8 +87,8 @@ export default function DailyPrices() {
                 <tr key={r.itemId} style={r.dirty ? { background: "color-mix(in srgb, var(--accent) 12%, transparent)" } : undefined}>
                   <td style={{ fontWeight: 700 }}>{lang === "ar" ? (r.nameAr ?? r.nameEn) : r.nameEn}</td>
                   <td><span className="pill badge-muted">{r.unit}</span></td>
-                  <td><input className="field tabular" type="number" step="0.25" value={r.cost} onChange={(e) => setVal(r.itemId, "cost", Number(e.target.value))} style={{ padding: "6px 8px" }} /></td>
-                  <td><input className="field tabular" type="number" step="0.25" value={r.sell} onChange={(e) => setVal(r.itemId, "sell", Number(e.target.value))} style={{ padding: "6px 8px", fontWeight: 700 }} /></td>
+                  <td><NumField value={r.cost} onChange={(n) => setVal(r.itemId, "cost", n)} style={{ padding: "6px 8px" }} /></td>
+                  <td><NumField value={r.sell} onChange={(n) => setVal(r.itemId, "sell", n)} style={{ padding: "6px 8px", fontWeight: 700 }} /></td>
                   <td><span className={"pill " + (margin < 0 ? "badge-danger" : margin < 15 ? "badge-warning" : "badge-success")}>{num(margin)}%</span></td>
                   <td>{r.updatedToday && !r.dirty ? <span className="text-accent" title={t("محدّث اليوم", "Updated today")}><Icon name="check" size={16} /></span> : null}</td>
                 </tr>

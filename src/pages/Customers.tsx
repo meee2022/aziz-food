@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { money } from "../lib/format";
-import { PageHeader, Icon, Modal, Spinner, Empty } from "../components/ui";
+import { PageHeader, Icon, Modal, Spinner, Empty, NumField } from "../components/ui";
 
 export const CUSTOMER_TYPES: [string, string, string][] = [
   ["restaurant", "مطعم", "Restaurant"],
@@ -121,12 +121,12 @@ export function CustomerModal({ customer, lists, onClose, onSave }: any) {
         <div style={{ gridColumn: "1 / -1" }}><label className="label">{t("العنوان", "Address")}</label><input className="field" value={f.address} onChange={(e) => set("address", e.target.value)} /></div>
         <div><label className="label">{t("طريقة الدفع", "Payment")}</label>
           <select className="field" value={f.paymentMethod} onChange={(e) => set("paymentMethod", e.target.value)}>{PAY_METHODS.map((c) => <option key={c[0]} value={c[0]}>{t(c[1], c[2])}</option>)}</select></div>
-        <div><label className="label">{t("الحد الائتماني", "Credit limit")}</label><input className="field tabular" type="number" value={f.creditLimit} onChange={(e) => set("creditLimit", Number(e.target.value))} /></div>
+        <div><label className="label">{t("الحد الائتماني", "Credit limit")}</label><NumField value={f.creditLimit} onChange={(n) => set("creditLimit", n)} /></div>
         <div><label className="label">{t("قائمة الأسعار", "Price list")}</label>
           <select className="field" value={f.priceListId} onChange={(e) => set("priceListId", e.target.value)}>
             <option value="">{t("الافتراضي", "Default")}</option>{lists.map((l: any) => <option key={l._id} value={l._id}>{lang === "ar" ? l.nameAr : l.nameEn}</option>)}
           </select></div>
-        <div><label className="label">{t("خصم خاص %", "Discount %")}</label><input className="field tabular" type="number" value={f.discountPct} onChange={(e) => set("discountPct", Number(e.target.value))} /></div>
+        <div><label className="label">{t("خصم خاص %", "Discount %")}</label><NumField value={f.discountPct} onChange={(n) => set("discountPct", n)} /></div>
         <div style={{ gridColumn: "1 / -1" }}><label className="label">{t("🔑 كلمة سر دخول العميل لبوابة الطلبات (اختياري)", "🔑 Customer order-portal password (optional)")}</label>
           <input className="field" value={f.loginPin} onChange={(e) => set("loginPin", e.target.value)} placeholder={t("اتركها فارغة لتعطيل الدخول", "leave empty to disable login")} style={{ direction: "ltr", textAlign: "start" }} /></div>
         <div style={{ gridColumn: "1 / -1" }}><label className="label">{t("ملاحظات", "Notes")}</label><input className="field" value={f.notes} onChange={(e) => set("notes", e.target.value)} /></div>

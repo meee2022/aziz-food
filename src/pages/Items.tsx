@@ -5,7 +5,7 @@ import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, num, today, formatDate } from "../lib/format";
 import { readExcelRaw, guessItemRow, exportExcel } from "../lib/xlsx";
-import { PageHeader, Icon, Modal, Spinner, Empty } from "../components/ui";
+import { PageHeader, Icon, Modal, Spinner, Empty, NumField } from "../components/ui";
 
 import { useUnits } from "../lib/units";
 
@@ -161,8 +161,8 @@ function ItemModal({ item, cats, onClose, onSave }: any) {
             </select></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 12 }}>
-          <div><label className="label">{t("سعر التكلفة", "Cost")}</label><input className="field tabular" type="number" value={f.defaultCost} onChange={(e) => setF({ ...f, defaultCost: Number(e.target.value) })} /></div>
-          <div><label className="label">{t("سعر البيع", "Sell")}</label><input className="field tabular" type="number" value={f.defaultSell} onChange={(e) => setF({ ...f, defaultSell: Number(e.target.value) })} /></div>
+          <div><label className="label">{t("سعر التكلفة", "Cost")}</label><NumField value={f.defaultCost} onChange={(n) => setF({ ...f, defaultCost: n })} /></div>
+          <div><label className="label">{t("سعر البيع", "Sell")}</label><NumField value={f.defaultSell} onChange={(n) => setF({ ...f, defaultSell: n })} /></div>
           <div><label className="label">{t("هامش الربح", "Margin")}</label><div className="field tabular" style={{ background: "var(--surface)", fontWeight: 800 }}>{margin}%</div></div>
         </div>
         <div><label className="label">{t("المصدر", "Origin")}</label>

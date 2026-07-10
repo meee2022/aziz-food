@@ -3,7 +3,7 @@ import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "..
 import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { money, today } from "../lib/format";
-import { PageHeader, Icon, Modal, Spinner, Empty } from "../components/ui";
+import { PageHeader, Icon, Modal, Spinner, Empty, NumField, parseNum, normalizeNum } from "../components/ui";
 
 export default function PriceLists() {
   const t = useT(); const { lang } = useLang();
@@ -61,7 +61,7 @@ function ListModal({ list, onClose, onSave }: any) {
           <div><label className="label">{t("الاسم (عربي)", "Name AR")}</label><input className="field" value={f.nameAr} onChange={(e) => setF({ ...f, nameAr: e.target.value })} /></div>
           <div><label className="label">{t("الاسم (إنجليزي)", "Name EN")}</label><input className="field" value={f.nameEn} onChange={(e) => setF({ ...f, nameEn: e.target.value })} /></div>
         </div>
-        <div><label className="label">{t("هامش عام % (على سعر البيع الافتراضي)", "Margin % over default")}</label><input className="field tabular" type="number" value={f.marginPct} onChange={(e) => setF({ ...f, marginPct: Number(e.target.value) })} /></div>
+        <div><label className="label">{t("هامش عام % (على سعر البيع الافتراضي)", "Margin % over default")}</label><NumField value={f.marginPct} onChange={(n) => setF({ ...f, marginPct: n })} /></div>
         <button className="btn-primary" disabled={!f.nameAr} onClick={() => onSave(f)}><Icon name="check" size={16} /> {t("حفظ", "Save")}</button>
       </div>
     </Modal>
@@ -92,8 +92,8 @@ function PricingModal({ list, onClose }: any) {
               <tr key={it._id}>
                 <td style={{ fontWeight: 700 }}>{lang === "ar" ? (it.nameAr ?? it.nameEn) : it.nameEn} <span className="pill badge-muted">{it.unit}</span></td>
                 <td className="tabular text-muted">{money(it.todaySell, false)}</td>
-                <td><input className="field tabular" type="number" placeholder={money(it.todaySell, false)} defaultValue={priceMap.get(it._id) ?? ""}
-                  onBlur={(e) => { const v = e.target.value.trim(); setItemPrice({ priceListId: list._id, itemId: it._id, price: v === "" ? undefined : Number(v) }); }}
+                <td><input className="field tabular" inputMode="decimal" dir="ltr" placeholder={money(it.todaySell, false)} defaultValue={priceMap.get(it._id) ?? ""}
+                  onBlur={(e) => { const v = normalizeNum(e.target.value); setItemPrice({ priceListId: list._id, itemId: it._id, price: v === "" ? undefined : parseNum(v) }); }}
                   style={{ padding: "6px 8px" }} /></td>
               </tr>
             ))}

@@ -5,7 +5,7 @@ import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, formatDate, today } from "../lib/format";
 import { exportExcel } from "../lib/xlsx";
-import { PageHeader, Icon, Modal, Spinner, Empty, StatCard } from "../components/ui";
+import { PageHeader, Icon, Modal, Spinner, Empty, StatCard, NumField } from "../components/ui";
 
 export const EXPENSE_CATS = [
   "توصيل", "أجور عمال", "بنزين ونقل", "إيجار", "كهرباء ومياه",
@@ -111,7 +111,7 @@ function ExpenseModal({ expense, onClose, onSave }: any) {
       <div style={{ display: "grid", gap: 12 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div><label className="label">{t("التاريخ", "Date")}</label><input className="field tabular" type="date" value={f.date} onChange={(e) => set("date", e.target.value)} /></div>
-          <div><label className="label">{t("المبلغ", "Amount")}</label><input className="field tabular" type="number" autoFocus value={f.amount} onChange={(e) => set("amount", Number(e.target.value))} style={{ fontWeight: 800 }} /></div>
+          <div><label className="label">{t("المبلغ", "Amount")}</label><NumField autoFocus value={f.amount} onChange={(n) => set("amount", n)} style={{ fontWeight: 800 }} /></div>
         </div>
         <div><label className="label">{t("البند", "Category")}</label>
           <select className="field" value={EXPENSE_CATS.includes(f.category) ? f.category : "__custom"} onChange={(e) => set("category", e.target.value === "__custom" ? "" : e.target.value)}>

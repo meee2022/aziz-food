@@ -1,5 +1,71 @@
-import { ReactNode, useEffect } from "react";
+import { InputHTMLAttributes, ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+
+/* ── إدخال الأرقام الكسرية ──
+   <input type="number"> يُرجع نصًا فارغًا لأي محتوى غير صالح، ومنه الرقم غير المكتمل
+   مثل "1." أو الفاصلة العشرية العربية "1٫"، فتتحوّل القيمة إلى صفر ويختفي ما كُتب.
+   لذلك نستقبل نصًا ونطبّع الأرقام العربية/الفارسية والفواصل بأنفسنا. */
+const AR = "٠١٢٣٤٥٦٧٨٩";
+const FA = "۰۱۲۳۴۵۶۷۸۹";
+
+export function normalizeNum(raw: string, allowNegative = false): string {
+  let s = "";
+  for (const ch of raw) {
+    const a = AR.indexOf(ch);
+    const f = FA.indexOf(ch);
+    s += a >= 0 ? String(a) : f >= 0 ? String(f) : ch;
+  }
+  s = s.replace(/[٫،,]/g, ".");
+  const neg = allowNegative && s.trimStart().startsWith("-");
+  s = s.replace(/[^0-9.]/g, "");
+  const [head, ...tail] = s.split(".");
+  if (tail.length) s = `${head}.${tail.join("")}`; // نقطة عشرية واحدة فقط
+  return (neg ? "-" : "") + s;
+}
+
+/** يحوّل ما كتبه المستخدم إلى رقم؛ النص غير المكتمل ("1." أو "-" أو "") يساوي صفرًا. */
+export function parseNum(raw: string, allowNegative = true): number {
+  const n = Number(normalizeNum(raw, allowNegative));
+  return Number.isFinite(n) ? n : 0;
+}
+
+type NumFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type"> & {
+  value: number | "";
+  onChange: (n: number) => void;
+  allowNegative?: boolean;
+};
+
+/** حقل رقمي يقبل 0.1 و 0،1 و ٠٫١ على أي لوحة مفاتيح أو لغة نظام. */
+export function NumField({ value, onChange, allowNegative = false, className = "field tabular", onFocus, onBlur, ...rest }: NumFieldProps) {
+  // أثناء الكتابة نعرض ما كتبه المستخدم حرفيًا (تبقى "1." كما هي)، وبعد الخروج نعرض الرقم.
+  const [draft, setDraft] = useState<string | null>(null);
+  const mine = useRef<number | "">(value);
+  useEffect(() => {
+    // تغيّرت القيمة من الخارج (أزرار +/− أو أزرار الكميات السريعة) ⇒ اترك المسودة
+    if (value !== mine.current) { mine.current = value; setDraft(null); }
+  }, [value]);
+
+  return (
+    <input
+      {...rest}
+      className={className}
+      type="text"
+      inputMode="decimal"
+      dir="ltr"
+      autoComplete="off"
+      value={draft ?? String(value)}
+      onChange={(e) => {
+        const s = normalizeNum(e.target.value, allowNegative);
+        setDraft(s);
+        const n = parseNum(s, allowNegative);
+        mine.current = n;
+        onChange(n);
+      }}
+      onFocus={(e) => { e.currentTarget.select(); onFocus?.(e); }}
+      onBlur={(e) => { setDraft(null); onBlur?.(e); }}
+    />
+  );
+}
 
 /* ── أيقونات SVG بسيطة ── */
 const PATHS: Record<string, string> = {
