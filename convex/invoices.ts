@@ -1,6 +1,6 @@
 import { authQuery as query, authMutation as mutation } from "./auth";
 import { v } from "convex/values";
-import { round2, todayStr, nextInvoiceNumber, logAction, recomputeBalance } from "./helpers";
+import { round2, todayStr, nextInvoiceNumber, previewNextInvoiceNumber, logAction, recomputeBalance } from "./helpers";
 
 const lineInput = v.object({
   itemId: v.optional(v.id("items")),
@@ -73,27 +73,30 @@ export const get = query({
 export const nextNumberForCustomer = query({
   args: { customerId: v.id("customers") },
   handler: async (ctx: any, { customerId }: any) => {
+    const autoNext = await previewNextInvoiceNumber(ctx);
     const rows = await ctx.db.query("invoices").withIndex("by_customer", (q: any) => q.eq("customerId", customerId)).collect();
-    if (!rows.length) return null;
+    if (!rows.length) return { mode: "auto", from: null, suggested: autoNext };
+
     const last = rows.sort((a: any, b: any) => b.createdAt - a.createdAt)[0];
 
-    // نقترح فقط إن كان رقم آخر فاتورة مكتوبًا يدويًا (تسلسل متفق عليه مع العميل).
+    // تسلسل خاص بالعميل فقط إن كان رقم آخر فاتورة مكتوبًا يدويًا.
     // للفواتير القديمة بلا علامة: نعتبره تلقائيًا فقط إن طابق شكل الترقيم التلقائي INV-######.
     const isAutoFormat = /^INV-\d{6}$/.test(String(last.number));
     const wasCustom = last.customNumber === true || (last.customNumber === undefined && !isAutoFormat);
-    if (!wasCustom) return null;
+    if (!wasCustom) return { mode: "auto", from: last.number, suggested: autoNext };
 
     const m = String(last.number).match(/^(.*?)(\d+)(\D*)$/);
-    if (!m) return null;
+    if (!m) return { mode: "auto", from: last.number, suggested: autoNext };
+
     const [, prefix, digits, suffix] = m;
     let n = parseInt(digits, 10);
     for (let i = 0; i < 200; i++) {
       n += 1;
       const cand = prefix + String(n).padStart(digits.length, "0") + suffix;
       const exists = await ctx.db.query("invoices").withIndex("by_number", (q: any) => q.eq("number", cand)).first();
-      if (!exists) return { suggested: cand, from: last.number };
+      if (!exists) return { mode: "customer", from: last.number, suggested: cand };
     }
-    return null;
+    return { mode: "auto", from: last.number, suggested: autoNext };
   },
 });
 

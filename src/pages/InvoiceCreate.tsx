@@ -58,7 +58,9 @@ export default function InvoiceCreate() {
 
   useEffect(() => { if (!editMode) setNumberTouched(false); }, [customerId, editMode]);
   useEffect(() => {
-    if (!editMode && !numberTouched && numberSuggestion?.suggested) setNumber(numberSuggestion.suggested);
+    if (editMode || numberTouched || !numberSuggestion) return;
+    // تسلسل خاص بالعميل ⇒ عبّئ الرقم. ترقيم النظام ⇒ اتركه فارغًا (يُسنَد عند الحفظ).
+    setNumber(numberSuggestion.mode === "customer" ? numberSuggestion.suggested : "");
   }, [numberSuggestion, editMode, numberTouched]);
 
   // تحميل فاتورة للتعديل
@@ -164,12 +166,21 @@ export default function InvoiceCreate() {
             <label className="label" style={{ marginBottom: 2 }}>{t("رقم الفاتورة", "Invoice #")}</label>
             <input className="field tabular" value={number} onChange={(e) => { setNumber(e.target.value); setNumberTouched(true); }}
               placeholder={t("تلقائي", "auto")} style={{ minWidth: 150, direction: "ltr", textAlign: "start" }} />
-            {!editMode && !number && <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>{t("اتركه فارغًا للترقيم التلقائي", "leave empty = auto")}</div>}
-            {!editMode && !numberTouched && numberSuggestion?.from && (
-              <div className="text-accent" style={{ fontSize: 11, marginTop: 2, fontWeight: 700 }}>
-                {t("تسلسل العميل بعد", "follows")} <span className="tabular" style={{ direction: "ltr", display: "inline-block" }}>{numberSuggestion.from}</span>
-              </div>
+            {!editMode && !numberTouched && numberSuggestion && (
+              numberSuggestion.mode === "customer" ? (
+                <div className="text-accent" style={{ fontSize: 11, marginTop: 2, fontWeight: 700 }}>
+                  {t("تسلسل هذا العميل بعد", "continues customer's")}{" "}
+                  <span className="tabular" style={{ direction: "ltr", display: "inline-block" }}>{numberSuggestion.from}</span>
+                </div>
+              ) : (
+                <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>
+                  {t("ترقيم النظام:", "system numbering:")}{" "}
+                  <b className="tabular" style={{ direction: "ltr", display: "inline-block" }}>{numberSuggestion.suggested}</b>
+                  {numberSuggestion.from && <> · {t("آخر فاتورة", "last")} <span className="tabular" style={{ direction: "ltr", display: "inline-block" }}>{numberSuggestion.from}</span></>}
+                </div>
+              )
             )}
+            {!editMode && numberTouched && !number && <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>{t("فارغ = ترقيم النظام", "empty = system numbering")}</div>}
           </div>
           <div>
             <label className="label" style={{ marginBottom: 2 }}>{t("تاريخ الفاتورة", "Invoice date")}</label>

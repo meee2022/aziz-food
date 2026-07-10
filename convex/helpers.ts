@@ -90,20 +90,42 @@ export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-/** الرقم التسلسلي التالي للفاتورة INV-000001. */
+export function formatAutoNumber(value: number): string {
+  return "INV-" + String(value).padStart(6, "0");
+}
+
+/** الرقم التلقائي التالي دون استهلاك العدّاد (للمعاينة فقط)، متخطيًا الأرقام المستخدمة. */
+export async function previewNextInvoiceNumber(ctx: Ctx): Promise<string> {
+  const counter = await ctx.db
+    .query("counters")
+    .withIndex("by_name", (q) => q.eq("name", "invoice"))
+    .first();
+  let value = (counter?.value ?? 0) + 1;
+  for (let i = 0; i < 500; i++) {
+    const cand = formatAutoNumber(value);
+    const taken = await ctx.db.query("invoices").withIndex("by_number", (q) => q.eq("number", cand)).first();
+    if (!taken) return cand;
+    value++;
+  }
+  return formatAutoNumber(value);
+}
+
+/** الرقم التسلسلي التالي للفاتورة INV-000001 — يتخطّى أي رقم مستخدم يدويًا. */
 export async function nextInvoiceNumber(ctx: MutationCtx): Promise<string> {
   const counter = await ctx.db
     .query("counters")
     .withIndex("by_name", (q) => q.eq("name", "invoice"))
     .first();
-  let value = 1;
-  if (counter) {
-    value = counter.value + 1;
-    await ctx.db.patch(counter._id, { value });
-  } else {
-    await ctx.db.insert("counters", { name: "invoice", value: 1 });
+  let value = (counter?.value ?? 0) + 1;
+  // تخطَّ الأرقام التي كُتبت يدويًا وتصادف نفس الشكل
+  for (let i = 0; i < 500; i++) {
+    const taken = await ctx.db.query("invoices").withIndex("by_number", (q) => q.eq("number", formatAutoNumber(value))).first();
+    if (!taken) break;
+    value++;
   }
-  return "INV-" + String(value).padStart(6, "0");
+  if (counter) await ctx.db.patch(counter._id, { value });
+  else await ctx.db.insert("counters", { name: "invoice", value });
+  return formatAutoNumber(value);
 }
 
 /**
