@@ -55,6 +55,17 @@ export const list = query({
   },
 });
 
+/** الفروع التي سبق كتابتها — تُقترح على المستخدم فلا تتشتت التسمية بأخطاء الكتابة. */
+export const branches = query({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("invoices").withIndex("by_date").order("desc").take(400);
+    const names = new Set<string>();
+    for (const r of rows) if (r.branch) names.add(r.branch);
+    return [...names].sort((a, b) => a.localeCompare(b, "ar"));
+  },
+});
+
 export const get = query({
   args: { id: v.id("invoices") },
   handler: async (ctx, { id }) => {

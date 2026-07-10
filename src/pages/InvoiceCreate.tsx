@@ -54,6 +54,7 @@ export default function InvoiceCreate() {
   const pricingDate = usePricesOfDate ? date : today();
   const prices = useQuery(api.customers.priceListFor, customerId ? { customerId: customerId as any, date: pricingDate } : { date: pricingDate });
   const cats = useQuery(api.categories.list, {});
+  const knownBranches = useQuery(api.invoices.branches, {});
   // الرقم التالي المقترح حسب آخر فاتورة لهذا العميل
   const numberSuggestion = useQuery(api.invoices.nextNumberForCustomer, (!editMode && customerId) ? { customerId: customerId as any } : "skip");
 
@@ -359,7 +360,8 @@ export default function InvoiceCreate() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 14 }}>
                   <div>
                     <label className="label">{t("الفرع", "Branch")}</label>
-                    <input className="field" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder={t("اختياري", "optional")} />
+                    <input className="field" list="branch-list" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder={t("اختياري", "optional")} />
+                    <datalist id="branch-list">{(knownBranches ?? []).map((b) => <option key={b} value={b} />)}</datalist>
                   </div>
                   <div><label className="label">{t("الموقع", "Location")}</label><input className="field" value={location} onChange={(e) => setLocation(e.target.value)} /></div>
                   <div><label className="label">{t("رقم الأوردر LPO", "LPO #")}</label><input className="field" value={lpo} onChange={(e) => setLpo(e.target.value)} /></div>
