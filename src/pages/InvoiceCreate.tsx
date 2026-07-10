@@ -42,8 +42,8 @@ export default function InvoiceCreate() {
   const itemInputRef = useRef<HTMLInputElement>(null);
 
   // أسعار الأصناف الفعّالة للعميل المختار + التصنيفات
-  // الأسعار تتبع تاريخ الفاتورة المختار (تأريخ سابق ⇒ أسعار ذلك اليوم)
-  const prices = useQuery(api.customers.priceListFor, customerId ? { customerId: customerId as any, date } : { date });
+  // الأسعار دائمًا أسعار اليوم — تاريخ الفاتورة هو تاريخ المستند/التسليم فقط ولا يغيّر التسعير
+  const prices = useQuery(api.customers.priceListFor, customerId ? { customerId: customerId as any, date: today() } : { date: today() });
   const cats = useQuery(api.categories.list, {});
 
   // تحميل فاتورة للتعديل
