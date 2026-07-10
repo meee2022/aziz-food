@@ -34,7 +34,9 @@ export default function InvoiceCreate() {
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(today());
   const [number, setNumber] = useState(""); // فارغ = ترقيم تلقائي
+  const [numberTouched, setNumberTouched] = useState(false);
   const UNITS = useUnits();
+  const [pickQty, setPickQty] = useState<Record<string, number>>({}); // كمية مبدئية داخل بطاقات الاختيار
   // افتراضيًا: أسعار اليوم. لو فعّلها المستخدم تُستخدم أسعار تاريخ الفاتورة من سجل الأسعار.
   const [usePricesOfDate, setUsePricesOfDate] = useState(false);
   const [location, setLocation] = useState("");
@@ -51,6 +53,13 @@ export default function InvoiceCreate() {
   const pricingDate = usePricesOfDate ? date : today();
   const prices = useQuery(api.customers.priceListFor, customerId ? { customerId: customerId as any, date: pricingDate } : { date: pricingDate });
   const cats = useQuery(api.categories.list, {});
+  // الرقم التالي المقترح حسب آخر فاتورة لهذا العميل
+  const numberSuggestion = useQuery(api.invoices.nextNumberForCustomer, (!editMode && customerId) ? { customerId: customerId as any } : "skip");
+
+  useEffect(() => { if (!editMode) setNumberTouched(false); }, [customerId, editMode]);
+  useEffect(() => {
+    if (!editMode && !numberTouched && numberSuggestion?.suggested) setNumber(numberSuggestion.suggested);
+  }, [numberSuggestion, editMode, numberTouched]);
 
   // تحميل فاتورة للتعديل
   useEffect(() => {
@@ -81,13 +90,18 @@ export default function InvoiceCreate() {
     );
   }, [prices, itemSearch, catFilter]);
 
-  const addItem = (p: any) => {
+  const pickQtyOf = (id: string) => pickQty[id] ?? 1;
+  const setPickQtyOf = (id: string, v: number) => setPickQty((s) => ({ ...s, [id]: Math.max(0, Math.round(v * 100) / 100) }));
+
+  const addItem = (p: any, qty?: number) => {
+    const q = qty && qty > 0 ? qty : 1;
     setLines((ls) => {
       const idx = ls.findIndex((l) => l.itemId === p.itemId);
-      if (idx >= 0) { const copy = [...ls]; copy[idx] = { ...copy[idx], qty: copy[idx].qty + 1 }; return copy; }
-      return [...ls, { itemId: p.itemId, name: p.name, unit: p.unit, qty: 1, unitPrice: p.sell, cost: p.cost }];
+      if (idx >= 0) { const copy = [...ls]; copy[idx] = { ...copy[idx], qty: Math.round((copy[idx].qty + q) * 100) / 100 }; return copy; }
+      return [...ls, { itemId: p.itemId, name: p.name, unit: p.unit, qty: q, unitPrice: p.sell, cost: p.cost }];
     });
     setItemSearch("");
+    setPickQty((s) => ({ ...s, [p.itemId]: 1 })); // أعد الكمية المبدئية
     itemInputRef.current?.focus();
   };
 
@@ -148,9 +162,14 @@ export default function InvoiceCreate() {
         actions={<>
           <div>
             <label className="label" style={{ marginBottom: 2 }}>{t("رقم الفاتورة", "Invoice #")}</label>
-            <input className="field tabular" value={number} onChange={(e) => setNumber(e.target.value)}
+            <input className="field tabular" value={number} onChange={(e) => { setNumber(e.target.value); setNumberTouched(true); }}
               placeholder={t("تلقائي", "auto")} style={{ minWidth: 150, direction: "ltr", textAlign: "start" }} />
             {!editMode && !number && <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>{t("اتركه فارغًا للترقيم التلقائي", "leave empty = auto")}</div>}
+            {!editMode && !numberTouched && numberSuggestion?.from && (
+              <div className="text-accent" style={{ fontSize: 11, marginTop: 2, fontWeight: 700 }}>
+                {t("تسلسل العميل بعد", "follows")} <span className="tabular" style={{ direction: "ltr", display: "inline-block" }}>{numberSuggestion.from}</span>
+              </div>
+            )}
           </div>
           <div>
             <label className="label" style={{ marginBottom: 2 }}>{t("تاريخ الفاتورة", "Invoice date")}</label>
@@ -209,18 +228,17 @@ export default function InvoiceCreate() {
       {customerId && (
         <>
           {/* إضافة صنف — تصفّح بالضغط أو بحث (عربي/إنجليزي) — ثابت أعلى الشاشة */}
-          <div className="card item-search-sticky" style={{ marginBottom: 14, position: "sticky", top: 56, zIndex: 15, boxShadow: "0 6px 20px -10px rgba(60,10,20,.35)" }}>
-            <label className="label">{t("إضافة صنف — اضغط لاختيار صنف أو اكتب للبحث", "Add item — tap to pick or type to search")}</label>
+          <div className="card item-search-sticky" style={{ marginBottom: 14, position: "sticky", top: 56, zIndex: 15, boxShadow: "0 6px 20px -10px rgba(60,10,20,.35)" }}
+            onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setPickerOpen(false); }}>
+            <label className="label">{t("إضافة صنف — حدّد الكمية ثم أضف، أو اكتب للبحث", "Add item — set qty then add, or type to search")}</label>
             <input ref={itemInputRef} className="field" placeholder={t("اكتب اسم الصنف (عربي/إنجليزي)…", "Type item name…")} value={itemSearch}
               onChange={(e) => { setItemSearch(e.target.value); setPickerOpen(true); }}
               onFocus={() => setPickerOpen(true)}
-              onBlur={() => setTimeout(() => setPickerOpen(false), 180)}
-              onKeyDown={(e) => { if (e.key === "Enter" && matchedItems[0]) addItem(matchedItems[0]); }} style={{ paddingInlineStart: 38, fontSize: 16 }} />
+              onKeyDown={(e) => { if (e.key === "Enter" && matchedItems[0]) addItem(matchedItems[0], pickQtyOf(matchedItems[0].itemId)); if (e.key === "Escape") setPickerOpen(false); }} style={{ paddingInlineStart: 38, fontSize: 16 }} />
             <span style={{ position: "absolute", insetInlineStart: 28, top: 42, color: "var(--muted)" }}><Icon name="search" size={18} /></span>
 
             {pickerOpen && (
-              <div onMouseDown={(e) => e.preventDefault()}
-                style={{ position: "absolute", insetInline: 0, top: "100%", marginTop: 6, zIndex: 25, background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)", boxShadow: "0 18px 44px -14px rgba(40,10,20,.45)", overflow: "hidden" }}>
+              <div style={{ position: "absolute", insetInline: 0, top: "100%", marginTop: 6, zIndex: 25, background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)", boxShadow: "0 18px 44px -14px rgba(40,10,20,.45)", overflow: "hidden" }}>
                 {/* شرائح التصنيفات */}
                 <div style={{ display: "flex", gap: 6, padding: 10, flexWrap: "wrap", borderBottom: "1px solid var(--border)" }}>
                   <button className={catFilter === "" ? "btn-primary" : "btn-ghost"} style={{ padding: "5px 12px", fontSize: 13 }} onClick={() => setCatFilter("")}>{t("الكل", "All")}</button>
@@ -231,24 +249,36 @@ export default function InvoiceCreate() {
                   ))}
                 </div>
                 {/* شبكة الأصناف */}
-                <div style={{ maxHeight: 300, overflowY: "auto", padding: 8, display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(132px,1fr))", gap: 6 }}>
-                  {matchedItems.map((p: any) => (
-                    <button key={p.itemId} onClick={() => addItem(p)}
-                      style={{ textAlign: "start", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 9, padding: "6px 8px", cursor: "pointer", display: "flex", flexDirection: "column", gap: 1, transition: "all .15s ease" }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "color-mix(in srgb,var(--accent) 16%,transparent)"; e.currentTarget.style.borderColor = "var(--accent)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "var(--surface)"; e.currentTarget.style.borderColor = "var(--border)"; }}>
-                      <span style={{ fontWeight: 800, fontSize: 12.5, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lang === "ar" ? (p.nameAr ?? p.name) : p.name}</span>
-                      <span className="text-muted" style={{ fontSize: 9.5, fontFamily: "Inter, sans-serif", direction: "ltr", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lang === "ar" ? p.name : (p.nameAr ?? "")}</span>
-                      <span style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 2, gap: 4 }}>
+                <div style={{ maxHeight: 320, overflowY: "auto", padding: 8, display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 6 }}>
+                  {matchedItems.map((p: any) => {
+                    const q = pickQtyOf(p.itemId);
+                    return (
+                      <div key={p.itemId} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 9, padding: "6px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+                        <span style={{ fontWeight: 800, fontSize: 12.5, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lang === "ar" ? (p.nameAr ?? p.name) : p.name}</span>
+                        <span className="text-muted" style={{ fontSize: 9.5, fontFamily: "Inter, sans-serif", direction: "ltr", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lang === "ar" ? p.name : (p.nameAr ?? "")}</span>
                         <span className="tabular" style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                           {p.source === "customer" && <span title={t("سعر خاص", "Custom")} style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent-dark)" }} />}
                           <b className="text-primary" style={{ fontSize: 13 }}>{money(p.sell, false)}</b>
                           <span className="text-muted" style={{ fontSize: 9 }}>{p.unit}</span>
                         </span>
-                        <Icon name="plus" size={14} className="text-accent" />
-                      </span>
-                    </button>
-                  ))}
+                        {/* الكمية + إضافة */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}>
+                          <button type="button" title="−1" onClick={() => setPickQtyOf(p.itemId, q - 1)}
+                            style={{ width: 24, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", fontWeight: 800, fontSize: 15, lineHeight: 1 }}>−</button>
+                          <input className="tabular" type="number" min="0" step="0.25" value={q}
+                            onChange={(e) => setPickQtyOf(p.itemId, Number(e.target.value))}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(p, pickQtyOf(p.itemId)); } }}
+                            style={{ width: 46, height: 26, textAlign: "center", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", fontSize: 12, fontWeight: 700, color: "var(--ink)" }} />
+                          <button type="button" title="+1" onClick={() => setPickQtyOf(p.itemId, q + 1)}
+                            style={{ width: 24, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", fontWeight: 800, fontSize: 14, lineHeight: 1 }}>+</button>
+                          <button type="button" title={t("إضافة للفاتورة", "Add")} onClick={() => addItem(p, pickQtyOf(p.itemId))}
+                            style={{ flex: 1, height: 26, borderRadius: 7, border: "1px solid var(--accent)", background: "color-mix(in srgb,var(--accent) 22%,transparent)", color: "var(--primary)", cursor: "pointer", fontWeight: 800, fontSize: 11, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 2 }}>
+                            <Icon name="plus" size={12} /> {t("أضف", "Add")}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                   {matchedItems.length === 0 && <div className="text-muted" style={{ padding: 12, fontSize: 13, gridColumn: "1 / -1", textAlign: "center" }}>{t("لا أصناف مطابقة", "No matching items")}</div>}
                 </div>
               </div>

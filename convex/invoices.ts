@@ -65,6 +65,33 @@ export const get = query({
   },
 });
 
+/**
+ * الرقم التالي المقترح لعميل: يأخذ رقم آخر فاتورة له ويزيد الجزء الرقمي
+ * مع الحفاظ على البادئة وعدد الأصفار (AGR-2026-001 ⇒ AGR-2026-002)،
+ * ويتخطى أي رقم مستخدم بالفعل.
+ */
+export const nextNumberForCustomer = query({
+  args: { customerId: v.id("customers") },
+  handler: async (ctx: any, { customerId }: any) => {
+    const rows = await ctx.db.query("invoices").withIndex("by_customer", (q: any) => q.eq("customerId", customerId)).collect();
+    if (!rows.length) return null;
+    const last = rows.sort((a: any, b: any) => b.createdAt - a.createdAt)[0];
+    // لا نقترح لعميل يستخدم الترقيم التلقائي العام (INV-xxxxxx) — يبقى على التسلسل العام
+    if (/^INV-\d+$/.test(String(last.number))) return null;
+    const m = String(last.number).match(/^(.*?)(\d+)(\D*)$/);
+    if (!m) return null;
+    const [, prefix, digits, suffix] = m;
+    let n = parseInt(digits, 10);
+    for (let i = 0; i < 200; i++) {
+      n += 1;
+      const cand = prefix + String(n).padStart(digits.length, "0") + suffix;
+      const exists = await ctx.db.query("invoices").withIndex("by_number", (q: any) => q.eq("number", cand)).first();
+      if (!exists) return { suggested: cand, from: last.number };
+    }
+    return null;
+  },
+});
+
 /** آخر فاتورة معتمدة لعميل (لميزة "تكرار الطلب"). */
 export const lastForCustomer = query({
   args: { customerId: v.id("customers") },
