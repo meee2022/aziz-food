@@ -36,9 +36,8 @@ export default function CustomerDetail() {
       `${t("المدفوع", "Paid")}: ${money(st.totalPaid)}`,
       `${t("المتبقي", "Balance")}: ${money(st.balance)}`,
     ].join("\n");
-    const phone = waPhone(c.phone);
-    if (!phone) { alert(t("لا يوجد رقم هاتف لهذا العميل", "No phone number for this customer")); return; }
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(lines)}`, "_blank");
+    // بدون رقم محفوظ يفتح واتساب ليختار المستخدم جهة الاتصال
+    window.open(`https://wa.me/${waPhone(c.phone)}?text=${encodeURIComponent(lines)}`, "_blank");
   };
 
   return (
@@ -46,7 +45,7 @@ export default function CustomerDetail() {
       <PageHeader title={c.name} subtitle={`${typeLabel(c.type)} ${c.area ? "· " + c.area : ""}`}
         actions={<>
           <Link to="/customers" className="btn-ghost"><Icon name="back" size={16} /> {t("رجوع", "Back")}</Link>
-          <button className="btn-secondary" onClick={sendStatementWhatsapp} disabled={!c.phone}><Icon name="whatsapp" size={16} /> {t("إرسال كشف", "Send")}</button>
+          <button className="btn-secondary" onClick={sendStatementWhatsapp}><Icon name="whatsapp" size={16} /> {t("إرسال كشف", "Send")}</button>
           <button className="btn-primary" onClick={() => setPayOpen(true)}><Icon name="money" size={16} /> {t("تسجيل دفعة", "Add Payment")}</button>
         </>} />
 
@@ -140,9 +139,8 @@ function PortalAccess({ customerId, customer }: { customerId: any; customer: any
   };
 
   const sendWhatsapp = () => {
-    const phone = waPhone(customer.phone);
-    if (!phone) { alert(t("لا يوجد رقم هاتف لهذا العميل", "No phone number for this customer")); return; }
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message())}`, "_blank");
+    // بدون رقم محفوظ يفتح واتساب ليختار المستخدم جهة الاتصال
+    window.open(`https://wa.me/${waPhone(customer.phone)}?text=${encodeURIComponent(message())}`, "_blank");
   };
 
   return (
@@ -189,7 +187,7 @@ function PortalAccess({ customerId, customer }: { customerId: any; customer: any
 
           {enabled && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <button className="btn-secondary" onClick={sendWhatsapp} disabled={!customer.phone}>
+              <button className="btn-secondary" onClick={sendWhatsapp}>
                 <Icon name="whatsapp" size={15} /> {t("إرسال للعميل", "Send to customer")}
               </button>
               <button className="btn-ghost" onClick={copy}>

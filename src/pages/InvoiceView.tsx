@@ -41,8 +41,8 @@ export default function InvoiceView() {
       inv.location ? `${t("الموقع", "Location")}: ${inv.location}` : "",
       "", lines, "", `${t("الإجمالي", "Total")}: *${money(inv.total)}*`,
     ].filter(Boolean).join("\n");
+    // برقم محفوظ: محادثة مباشرة مع العميل. بدون رقم: يفتح واتساب ليختار المستخدم جهة الاتصال.
     const phone = waPhone(c?.phone, s.countryCode);
-    if (!phone) { alert(t("لا يوجد رقم هاتف لهذا العميل", "No phone number for this customer")); return; }
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
@@ -56,7 +56,7 @@ export default function InvoiceView() {
         {inv.status === "draft" && <button className="btn-primary" onClick={() => approve({ id: inv._id, approvedBy: user?.name })}><Icon name="check" size={16} /> {t("اعتماد", "Approve")}</button>}
         <button className="btn-ghost" onClick={() => window.print()}><Icon name="print" size={16} /> {t("طباعة", "Print")}</button>
         <button className="btn-secondary" onClick={savePdf}><Icon name="download" size={16} /> {t("حفظ PDF", "Save PDF")}</button>
-        <button className="btn-secondary" onClick={whatsapp} disabled={!c?.phone}><Icon name="whatsapp" size={16} /> {t("واتساب", "WhatsApp")}</button>
+        <button className="btn-secondary" onClick={whatsapp}><Icon name="whatsapp" size={16} /> {t("واتساب", "WhatsApp")}</button>
         {inv.status !== "cancelled" && <button className="btn-ghost" style={{ color: "var(--warning)" }} onClick={() => confirm(t("إلغاء الفاتورة؟ (تبقى محفوظة كملغاة)", "Cancel invoice? (kept as cancelled)")) && cancel({ id: inv._id, by: user?.name })}><Icon name="x" size={16} /> {t("إلغاء", "Cancel")}</button>}
         <button className="btn-danger" onClick={() => confirm(t("حذف الفاتورة نهائيًا؟ لا يمكن التراجع.", "Delete invoice permanently? Cannot be undone.")) && removeInvoice({ id: inv._id, by: user?.name }).then(() => navigate("/invoices"))}><Icon name="trash" size={16} /> {t("حذف", "Delete")}</button>
       </div>
