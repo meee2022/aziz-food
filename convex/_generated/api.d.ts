@@ -17,6 +17,7 @@ import type * as expenses from "../expenses.js";
 import type * as helpers from "../helpers.js";
 import type * as invoices from "../invoices.js";
 import type * as items from "../items.js";
+import type * as notify from "../notify.js";
 import type * as orders from "../orders.js";
 import type * as payments from "../payments.js";
 import type * as priceLists from "../priceLists.js";
@@ -43,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   helpers: typeof helpers;
   invoices: typeof invoices;
   items: typeof items;
+  notify: typeof notify;
   orders: typeof orders;
   payments: typeof payments;
   priceLists: typeof priceLists;

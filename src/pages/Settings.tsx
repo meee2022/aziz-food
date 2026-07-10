@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAction } from "convex/react";
 import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "../lib/authedConvex";
 import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
@@ -30,7 +31,11 @@ export default function Settings() {
   const createCat = useMutation(api.categories.create);
   const seed = useMutation(api.seed.run);
 
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const testWhatsApp = useAction(api.notify.testWhatsApp);
+  const [wa, setWa] = useState<Record<string, string> | null>(null);
+  const [waMsg, setWaMsg] = useState("");
+  const [waBusy, setWaBusy] = useState(false);
   const [company, setCompany] = useState<Record<string, string> | null>(null);
   const [userModal, setUserModal] = useState<any>(null);
   const [seedMsg, setSeedMsg] = useState("");
@@ -40,6 +45,9 @@ export default function Settings() {
   if (settings === undefined || users === undefined) return <Spinner />;
   const s = company ?? settings;
   const setS = (k: string, v: string) => setCompany({ ...(company ?? settings), [k]: v });
+  const w = wa ?? settings;
+  const setW = (k: string, v: string) => setWa({ ...(wa ?? settings), [k]: v });
+  const WA_KEYS = ["waNotifyEnabled", "waPhone", "waProvider", "waApiKey", "waInstanceId"];
 
   return (
     <div className="animate-in">
@@ -86,6 +94,63 @@ export default function Settings() {
           for (const [k, v] of Object.entries(company!)) await setSetting({ key: k, value: String(v) });
           setCompany(null); location.reload();
         }}><Icon name="check" size={16} /> {t("حفظ", "Save")}</button>
+      </div>
+
+      {/* إشعارات واتساب */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="section-title" style={{ marginBottom: 6 }}>{t("📲 إشعارات واتساب للطلبات الجديدة", "📲 WhatsApp notifications for new orders")}</div>
+        <p className="text-muted" style={{ fontSize: 13, marginTop: 0 }}>
+          {t("أول ما يبعت أي عميل طلبًا، تصلك رسالة واتساب فورًا بتفاصيله.", "Get an instant WhatsApp message whenever a customer places an order.")}
+        </p>
+        {waMsg && <div className={"pill " + (waMsg.startsWith("✅") ? "badge-success" : "badge-danger")} style={{ marginBottom: 10 }}>{waMsg}</div>}
+
+        <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14, fontWeight: 700, marginBottom: 12 }}>
+          <input type="checkbox" checked={w.waNotifyEnabled === "true"} onChange={(e) => setW("waNotifyEnabled", e.target.checked ? "true" : "false")} style={{ width: 18, height: 18 }} />
+          {t("تفعيل الإشعارات", "Enable notifications")}
+        </label>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12 }}>
+          <div><label className="label">{t("رقم واتساب المستلم (بمفتاح الدولة)", "Your WhatsApp (with country code)")}</label>
+            <input className="field tabular" placeholder="97455239250" value={w.waPhone ?? ""} onChange={(e) => setW("waPhone", e.target.value)} style={{ direction: "ltr" }} /></div>
+          <div><label className="label">{t("المزوّد", "Provider")}</label>
+            <select className="field" value={w.waProvider || "callmebot"} onChange={(e) => setW("waProvider", e.target.value)}>
+              <option value="callmebot">CallMeBot ({t("مجاني", "free")})</option>
+              <option value="ultramsg">UltraMsg ({t("مدفوع", "paid")})</option>
+            </select></div>
+          <div><label className="label">{t("مفتاح الـ API", "API key")}</label>
+            <input className="field" type="password" value={w.waApiKey ?? ""} onChange={(e) => setW("waApiKey", e.target.value)} style={{ direction: "ltr" }} autoComplete="off" /></div>
+          {(w.waProvider === "ultramsg") && (
+            <div><label className="label">Instance ID</label>
+              <input className="field" value={w.waInstanceId ?? ""} onChange={(e) => setW("waInstanceId", e.target.value)} style={{ direction: "ltr" }} /></div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+          <button className="btn-primary" disabled={!wa} onClick={async () => {
+            for (const k of WA_KEYS) if (wa && wa[k] !== undefined) await setSetting({ key: k, value: String(wa[k]) });
+            setWa(null); setWaMsg(t("✅ تم حفظ الإعدادات", "✅ Settings saved"));
+          }}><Icon name="check" size={16} /> {t("حفظ", "Save")}</button>
+
+          <button className="btn-secondary" disabled={waBusy} onClick={async () => {
+            setWaBusy(true); setWaMsg("");
+            try {
+              const r: any = await testWhatsApp({ token: token ?? "" });
+              if (r?.ok) setWaMsg(t("✅ تم إرسال رسالة تجريبية — راجع واتساب", "✅ Test message sent — check WhatsApp"));
+              else if (r?.skipped) setWaMsg(t(`⚠️ لم تُرسل: ${r.skipped} (فعّل الإشعارات واضبط الرقم والمفتاح واحفظ أولًا)`, `⚠️ Not sent: ${r.skipped}`));
+              else setWaMsg(t(`⚠️ فشل الإرسال: ${r?.error ?? r?.status ?? "خطأ"}`, `⚠️ Failed: ${r?.error ?? r?.status}`));
+            } catch (e: any) { setWaMsg("⚠️ " + cleanErr(e)); }
+            finally { setWaBusy(false); }
+          }}><Icon name="whatsapp" size={16} /> {waBusy ? t("جارٍ…", "…") : t("إرسال رسالة تجريبية", "Send test message")}</button>
+        </div>
+
+        <details style={{ marginTop: 12 }}>
+          <summary className="text-muted" style={{ fontSize: 12.5, cursor: "pointer", fontWeight: 700 }}>{t("كيف أحصل على مفتاح CallMeBot المجاني؟", "How to get a free CallMeBot key?")}</summary>
+          <ol className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.9, marginTop: 8 }}>
+            <li>{t("أضف الرقم", "Add")} <b style={{ direction: "ltr", display: "inline-block" }}>+34 644 51 95 23</b> {t("لجهات اتصالك.", "to your contacts.")}</li>
+            <li>{t("ابعتله على واتساب هذه الرسالة بالضبط:", "Send it this exact WhatsApp message:")} <b style={{ direction: "ltr", display: "inline-block" }}>I allow callmebot to send me messages</b></li>
+            <li>{t("هيرد عليك بمفتاح (apikey) — انسخه وحطّه فوق واحفظ.", "It replies with an apikey — paste it above and save.")}</li>
+          </ol>
+        </details>
       </div>
 
       {/* المستخدمون */}

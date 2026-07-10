@@ -1,4 +1,5 @@
 import { authQuery, authMutation, customerQuery, customerMutation } from "./auth";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { effectivePrice, todayStr, round2, nextInvoiceNumber, logAction, recomputeBalance } from "./helpers";
 
@@ -41,6 +42,8 @@ export const place = customerMutation({
       number, customerId, customerName: customer.name, date,
       status: "pending", lines, note: args.note, createdAt: Date.now(),
     });
+    // إشعار واتساب للمالك (يعمل فقط إن كانت الإشعارات مفعّلة في الإعدادات)
+    await ctx.scheduler.runAfter(0, internal.notify.sendOrderNotification, { orderId: id });
     return { id, number };
   },
 });
