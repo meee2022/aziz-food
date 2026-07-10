@@ -31,6 +31,7 @@ export default function InvoiceCreate() {
   const [discountValue, setDiscountValue] = useState(0);
   const [taxPct, setTaxPct] = useState(0);
   const [notes, setNotes] = useState("");
+  const [date, setDate] = useState(today());
   const [location, setLocation] = useState("");
   const [lpo, setLpo] = useState("");
   const [dn, setDn] = useState("");
@@ -41,7 +42,8 @@ export default function InvoiceCreate() {
   const itemInputRef = useRef<HTMLInputElement>(null);
 
   // أسعار الأصناف الفعّالة للعميل المختار + التصنيفات
-  const prices = useQuery(api.customers.priceListFor, customerId ? { customerId: customerId as any, date: today() } : { date: today() });
+  // الأسعار تتبع تاريخ الفاتورة المختار (تأريخ سابق ⇒ أسعار ذلك اليوم)
+  const prices = useQuery(api.customers.priceListFor, customerId ? { customerId: customerId as any, date } : { date });
   const cats = useQuery(api.categories.list, {});
 
   // تحميل فاتورة للتعديل
@@ -51,7 +53,7 @@ export default function InvoiceCreate() {
       setCustomerId(existing.customerId);
       setLines(existing.lines.map((l: any) => ({ itemId: l.itemId, name: l.name, unit: l.unit, qty: l.qty, unitPrice: l.unitPrice, cost: l.cost })));
       setDiscountType(existing.discountType); setDiscountValue(existing.discountValue);
-      setTaxPct(existing.taxPct); setNotes(existing.notes ?? "");
+      setTaxPct(existing.taxPct); setNotes(existing.notes ?? ""); setDate(existing.date);
       setLocation(existing.location ?? ""); setLpo(existing.lpo ?? ""); setDn(existing.dn ?? "");
     }
   }, [editMode, existing]);
@@ -119,10 +121,10 @@ export default function InvoiceCreate() {
         location: location || undefined, lpo: lpo || undefined, dn: dn || undefined,
       };
       if (editMode) {
-        await updateInvoice({ id: id as any, ...payload, editedBy: user?.name });
+        await updateInvoice({ id: id as any, date, ...payload, editedBy: user?.name });
         navigate(`/invoice/${id}`);
       } else {
-        const res = await createInvoice({ customerId: customerId as any, date: today(), ...payload, status: approve ? "approved" : "draft", createdBy: user?.name });
+        const res = await createInvoice({ customerId: customerId as any, date, ...payload, status: approve ? "approved" : "draft", createdBy: user?.name });
         navigate(`/invoice/${res.id}`);
       }
     } finally { setSaving(false); }
@@ -133,7 +135,13 @@ export default function InvoiceCreate() {
   return (
     <div className="animate-in">
       <PageHeader title={editMode ? t("تعديل فاتورة", "Edit Invoice") : t("فاتورة جديدة", "New Invoice")}
-        subtitle={today()} />
+        subtitle={date !== today() ? t("تاريخ مخصّص", "Custom date") : undefined}
+        actions={
+          <div>
+            <label className="label" style={{ marginBottom: 2 }}>{t("تاريخ الفاتورة", "Invoice date")}</label>
+            <input className="field tabular" type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ minWidth: 170 }} />
+          </div>
+        } />
 
       {/* اختيار العميل */}
       <div className="card" style={{ marginBottom: 14 }}>

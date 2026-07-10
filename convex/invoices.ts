@@ -175,6 +175,7 @@ export const create = mutation({
 export const update = mutation({
   args: {
     id: v.id("invoices"),
+    date: v.optional(v.string()),
     location: v.optional(v.string()),
     lpo: v.optional(v.string()),
     dn: v.optional(v.string()),
@@ -197,6 +198,7 @@ export const update = mutation({
     const t = computeTotals(lines, dType, dValue, taxPct);
 
     await ctx.db.patch(args.id, {
+      date: args.date ?? inv.date,
       location: args.location ?? inv.location,
       lpo: args.lpo ?? inv.lpo,
       dn: args.dn ?? inv.dn,
