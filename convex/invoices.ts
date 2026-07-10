@@ -76,8 +76,13 @@ export const nextNumberForCustomer = query({
     const rows = await ctx.db.query("invoices").withIndex("by_customer", (q: any) => q.eq("customerId", customerId)).collect();
     if (!rows.length) return null;
     const last = rows.sort((a: any, b: any) => b.createdAt - a.createdAt)[0];
-    // لا نقترح لعميل يستخدم الترقيم التلقائي العام (INV-xxxxxx) — يبقى على التسلسل العام
-    if (/^INV-\d+$/.test(String(last.number))) return null;
+
+    // نقترح فقط إن كان رقم آخر فاتورة مكتوبًا يدويًا (تسلسل متفق عليه مع العميل).
+    // للفواتير القديمة بلا علامة: نعتبره تلقائيًا فقط إن طابق شكل الترقيم التلقائي INV-######.
+    const isAutoFormat = /^INV-\d{6}$/.test(String(last.number));
+    const wasCustom = last.customNumber === true || (last.customNumber === undefined && !isAutoFormat);
+    if (!wasCustom) return null;
+
     const m = String(last.number).match(/^(.*?)(\d+)(\D*)$/);
     if (!m) return null;
     const [, prefix, digits, suffix] = m;
@@ -165,8 +170,10 @@ export const create = mutation({
     const t = computeTotals(lines, dType, dValue, taxPct);
     const belowCost = lines.some((l) => l.unitPrice < l.cost);
     let number: string;
+    let customNumber = false;
     if (args.number && args.number.trim()) {
       number = args.number.trim();
+      customNumber = true;
       await assertNumberFree(ctx, number);
     } else {
       number = await nextInvoiceNumber(ctx);
@@ -175,6 +182,7 @@ export const create = mutation({
 
     const id = await ctx.db.insert("invoices", {
       number,
+      customNumber,
       customerId: args.customerId,
       customerName: customer.name,
       date,
@@ -239,13 +247,16 @@ export const update = mutation({
     const t = computeTotals(lines, dType, dValue, taxPct);
 
     let newNumber = inv.number;
+    let customNumber = inv.customNumber;
     if (args.number && args.number.trim() && args.number.trim() !== inv.number) {
       newNumber = args.number.trim();
+      customNumber = true; // كتبته يدويًا ⇒ تسلسل خاص بالعميل
       await assertNumberFree(ctx, newNumber, args.id);
     }
 
     await ctx.db.patch(args.id, {
       number: newNumber,
+      customNumber,
       date: args.date ?? inv.date,
       location: args.location ?? inv.location,
       lpo: args.lpo ?? inv.lpo,

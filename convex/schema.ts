@@ -142,7 +142,8 @@ export default defineSchema({
 
   // ── الفواتير (مع لقطة ثابتة للأسطر) ──
   invoices: defineTable({
-    number: v.string(),            // رقم تلقائي INV-000123
+    number: v.string(),            // رقم تلقائي INV-000123 أو رقم كتبته أنت
+    customNumber: v.optional(v.boolean()), // true = الرقم كتبته يدويًا (تسلسل متفق عليه)
     customerId: v.id("customers"),
     customerName: v.string(),      // لقطة
     date: v.string(),              // YYYY-MM-DD
