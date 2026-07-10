@@ -62,20 +62,20 @@ export default function InvoiceView() {
       </div>
 
       {/* ورقة الفاتورة (مطابقة لقالب MADAME TRADING) */}
-      <div className="invoice-sheet" style={{ maxWidth: 820, margin: "0 auto", background: "#fff", borderRadius: 12, padding: 28, boxShadow: "0 10px 30px -12px rgba(0,0,0,.15)", border: "1px solid var(--border)" }}>
+      <div className="invoice-sheet" style={{ maxWidth: 820, margin: "0 auto", background: "#fff", borderRadius: 12, padding: "18px 22px", boxShadow: "0 10px 30px -12px rgba(0,0,0,.15)", border: "1px solid var(--border)" }}>
         {/* الترويسة ثنائية اللغة */}
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, borderBottom: "3px solid var(--primary)", paddingBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, borderBottom: "2px solid var(--primary)", paddingBottom: 8 }}>
           <div style={{ direction: "ltr", textAlign: "left" }}>
-            <div style={{ fontSize: 22, fontWeight: 900, color: "#0a7c3f", letterSpacing: .5 }}>{nameEn}</div>
-            <div style={{ fontSize: 11.5, color: "var(--ink)", lineHeight: 1.7 }}>
+            <div style={{ fontSize: 17, fontWeight: 900, color: "#0a7c3f", letterSpacing: .5 }}>{nameEn}</div>
+            <div style={{ fontSize: 10, color: "var(--ink)", lineHeight: 1.45 }}>
               CR. {s.cr || "147672"}, Mobile: {s.phone || "55239250"}<br />
               {s.email || "azizhmicheh@outlook.sa"}<br />
               {s.addressEn || "Ain Khalid-56, Building: 299, Doha-Qatar."}
             </div>
           </div>
           <div style={{ direction: "rtl", textAlign: "right" }}>
-            <div style={{ fontSize: 22, fontWeight: 900, color: "#0a7c3f" }}>{nameAr}</div>
-            <div style={{ fontSize: 11.5, color: "var(--ink)", lineHeight: 1.7 }}>
+            <div style={{ fontSize: 17, fontWeight: 900, color: "#0a7c3f" }}>{nameAr}</div>
+            <div style={{ fontSize: 10, color: "var(--ink)", lineHeight: 1.45 }}>
               س.ت: {s.cr || "147672"} ، جوال: {s.phone || "55239250"}<br />
               {s.email || "azizhmicheh@outlook.sa"}<br />
               {s.addressAr || "عين خالد 56، مبنى: 299، الدوحة – قطر"}
@@ -84,22 +84,22 @@ export default function InvoiceView() {
         </div>
 
         {/* العنوان + الحالة */}
-        <div style={{ textAlign: "center", position: "relative", margin: "14px 0" }}>
-          <span style={{ fontSize: 26, fontWeight: 900, letterSpacing: 3, color: "var(--primary)" }}>INVOICE</span>
+        <div style={{ textAlign: "center", position: "relative", margin: "8px 0 7px" }}>
+          <span style={{ fontSize: 18, fontWeight: 900, letterSpacing: 2.5, color: "var(--primary)" }}>INVOICE</span>
           <span className={"pill " + (inv.status === "approved" ? "badge-success" : inv.status === "draft" ? "badge-warning" : "badge-danger")}
-            style={{ position: "absolute", insetInlineEnd: 0, top: 6 }}>
+            style={{ position: "absolute", insetInlineEnd: 0, top: 0 }}>
             {inv.status === "approved" ? t("معتمدة", "Approved") : inv.status === "draft" ? t("مسودة", "Draft") : t("ملغاة", "Cancelled")}
           </span>
         </div>
 
-        {/* بيانات الفاتورة */}
-        <div className="inv-meta" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", marginBottom: 14 }}>
+        {/* بيانات الفاتورة — أعمدة تتكيّف مع العرض: سبعة حقول في صفّين بدل أربعة */}
+        <div className="inv-meta" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(185px,1fr))", gap: 0, border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", marginBottom: 9 }}>
           <MetaRow labelAr="التاريخ" labelEn="Date" value={formatDate(inv.date, "en")} />
           <MetaRow labelAr="رقم الفاتورة" labelEn="Invoice #" value={inv.number} strong />
           <MetaRow labelAr="العميل" labelEn="Customer" value={inv.customer?.nameEn || inv.customerName} />
           <MetaRow labelAr="الفرع" labelEn="Branch" value={inv.branch || "—"} />
-          <MetaRow labelAr="أمر تسليم" labelEn="DN #" value={inv.dn || "—"} />
           <MetaRow labelAr="الموقع" labelEn="Location" value={inv.location || "—"} />
+          <MetaRow labelAr="أمر تسليم" labelEn="DN #" value={inv.dn || "—"} />
           <MetaRow labelAr="رقم الأوردر" labelEn="LPO #" value={inv.lpo || "—"} />
         </div>
 
@@ -134,7 +134,7 @@ export default function InvoiceView() {
         </table>
 
         {/* التذييل: المبلغ كتابةً + الإجماليات */}
-        <div style={{ display: "flex", gap: 14, marginTop: 14, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 14, marginTop: 10, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 300px", border: "1px solid var(--border)", borderRadius: 8, padding: 12 }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: "var(--muted)" }}>{t("المبلغ كتابةً", "Amount in words")}</div>
             <div style={{ fontSize: 13, fontWeight: 700, marginTop: 4, direction: "ltr", textAlign: "start", fontFamily: "Inter, sans-serif" }}>{amountInWordsEn(inv.total)}</div>
@@ -156,7 +156,7 @@ export default function InvoiceView() {
         </div>
 
         {/* التواقيع */}
-        <div className="invoice-sign" style={{ display: "flex", justifyContent: "space-between", gap: 20, marginTop: 30, paddingTop: 10 }}>
+        <div className="invoice-sign" style={{ display: "flex", justifyContent: "space-between", gap: 20, marginTop: 22, paddingTop: 6 }}>
           <SignLine ar="المستلم" en="Received by" />
           <SignLine ar="مندوب الشركة" en="EFT Representative" />
         </div>
@@ -170,14 +170,14 @@ export default function InvoiceView() {
       </div>
 
       <style>{`
-        .inv-table th, .inv-table td { border: 1px solid #d9cfc0; padding: 7px 8px; }
+        .inv-table th, .inv-table td { border: 1px solid #d9cfc0; padding: 5px 8px; }
         .inv-table thead th { background: var(--primary); color: var(--accent-light); }
-        .inv-meta > div:nth-child(odd) { border-inline-end: 1px solid var(--border); }
-        .inv-meta > div { border-bottom: 1px solid var(--border); }
+        /* الفواصل على كل خلية — الحدّ الخارجي يخفيه overflow:hidden فيصحّ مع أي عدد أعمدة */
+        .inv-meta > div { border-bottom: 1px solid var(--border); border-inline-end: 1px solid var(--border); }
         @media print {
           .invoice-sheet { box-shadow: none !important; border: none !important; max-width: 100% !important; padding: 0 !important; page-break-inside: avoid; }
-          .invoice-sheet .inv-table td { height: 26px !important; padding: 4px 8px !important; }
-          .invoice-sign { margin-top: 18px !important; }
+          .invoice-sheet .inv-table td { height: 22px !important; padding: 3px 8px !important; }
+          .invoice-sign { margin-top: 14px !important; }
           .invoice-sheet { font-size: 12px; }
         }
       `}</style>
@@ -188,8 +188,8 @@ export default function InvoiceView() {
 function MetaRow({ labelAr, labelEn, value, strong }: { labelAr: string; labelEn: string; value: string; strong?: boolean }) {
   const { lang } = useLang();
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", fontSize: 12.5 }}>
-      <span style={{ fontWeight: 800, color: "var(--muted)", minWidth: 96 }}>{lang === "ar" ? labelAr : labelEn}</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 9px", fontSize: 11.5 }}>
+      <span style={{ fontWeight: 800, color: "var(--muted)", minWidth: 74 }}>{lang === "ar" ? labelAr : labelEn}</span>
       <span style={{ fontWeight: strong ? 900 : 600, color: strong ? "var(--primary)" : "var(--ink)" }} className="tabular">{value}</span>
     </div>
   );
@@ -204,7 +204,7 @@ function ThCell({ ar, en, w }: { ar: string; en: string; w?: string }) {
 }
 
 function Td({ children, center, num, strong }: { children?: any; center?: boolean; num?: boolean; strong?: boolean }) {
-  return <td className={num ? "tabular" : ""} style={{ textAlign: center ? "center" : num ? "end" : "start", fontWeight: strong ? 800 : 500, height: 30 }}>{children}</td>;
+  return <td className={num ? "tabular" : ""} style={{ textAlign: center ? "center" : num ? "end" : "start", fontWeight: strong ? 800 : 500, height: 25 }}>{children}</td>;
 }
 
 function TotalLine({ ar, en, value }: { ar: string; en: string; value: string }) {
