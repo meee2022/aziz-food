@@ -37,6 +37,7 @@ export default function InvoiceView() {
     const lines = inv.lines.map((l: any, i: number) => `${i + 1}. ${l.name} ×${num(l.qty)} ${l.unit} = ${money(l.qty * l.unitPrice)}`).join("\n");
     const msg = [
       `*${nameAr}*`, `${t("فاتورة", "Invoice")} ${inv.number}`, `${t("العميل", "Customer")}: ${inv.customerName}`,
+      inv.branch ? `${t("الفرع", "Branch")}: ${inv.branch}` : "",
       inv.location ? `${t("الموقع", "Location")}: ${inv.location}` : "",
       "", lines, "", `${t("الإجمالي", "Total")}: *${money(inv.total)}*`,
     ].filter(Boolean).join("\n");
@@ -96,6 +97,7 @@ export default function InvoiceView() {
           <MetaRow labelAr="التاريخ" labelEn="Date" value={formatDate(inv.date, "en")} />
           <MetaRow labelAr="رقم الفاتورة" labelEn="Invoice #" value={inv.number} strong />
           <MetaRow labelAr="العميل" labelEn="Customer" value={inv.customer?.nameEn || inv.customerName} />
+          <MetaRow labelAr="الفرع" labelEn="Branch" value={inv.branch || "—"} />
           <MetaRow labelAr="أمر تسليم" labelEn="DN #" value={inv.dn || "—"} />
           <MetaRow labelAr="الموقع" labelEn="Location" value={inv.location || "—"} />
           <MetaRow labelAr="رقم الأوردر" labelEn="LPO #" value={inv.lpo || "—"} />

@@ -69,13 +69,21 @@ export function Modal({ open, onClose, title, children, wide }: {
 export function StatCard({ label, value, icon, accent, sub }: {
   label: string; value: string; icon: string; accent?: boolean; sub?: string;
 }) {
+  // "1,582.00 ر.ق" ⇒ الرقم بارز والعملة لاحقة صغيرة، فلا تزدحم البطاقة
+  const m = value.match(/^(-?[\d,]+(?:\.\d+)?)\s+(\S.*)$/);
+  const amount = m ? m[1] : value;
+  const suffix = m ? m[2] : null;
   return (
-    <div className="card card-hover animate-in" style={{ display: "flex", alignItems: "center", gap: 14 }}>
-      <div className={accent ? "icon-orb icon-orb-accent" : "icon-orb icon-orb-primary"}><Icon name={icon} size={22} /></div>
+    <div className="card card-hover animate-in" style={{ display: "flex", alignItems: "center", gap: 11, padding: 14 }}>
+      <div className={accent ? "icon-orb icon-orb-accent" : "icon-orb icon-orb-primary"}
+        style={{ width: 38, height: 38, flex: "0 0 auto" }}><Icon name={icon} size={18} /></div>
       <div style={{ minWidth: 0 }}>
-        <div className="text-muted" style={{ fontSize: 12, fontWeight: 700 }}>{label}</div>
-        <div className="tabular" style={{ fontSize: 22, fontWeight: 900, color: "var(--ink)", lineHeight: 1.2 }}>{value}</div>
-        {sub && <div className="text-muted" style={{ fontSize: 11 }}>{sub}</div>}
+        <div className="text-muted" style={{ fontSize: 11.5, fontWeight: 700 }}>{label}</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 4, lineHeight: 1.3 }}>
+          <span className="tabular" style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)", whiteSpace: "nowrap" }}>{amount}</span>
+          {suffix && <span className="text-muted" style={{ fontSize: 10.5, fontWeight: 700 }}>{suffix}</span>}
+        </div>
+        {sub && <div className="text-muted" style={{ fontSize: 10.5 }}>{sub}</div>}
       </div>
     </div>
   );

@@ -114,7 +114,7 @@ function ReviewModal({ order, onClose }: any) {
                 <td className="tabular">{num(l.qtyRequested)}</td>
                 <td>
                   {isPending
-                    ? <input className="field tabular" type="number" min="0" step="0.25" value={l.qtyApproved} disabled={!l.available} onChange={(e) => setLine(i, { qtyApproved: Number(e.target.value) })} style={{ padding: "5px 8px", width: 80 }} />
+                    ? <input className="field tabular" type="number" min="0" step="any" value={l.qtyApproved} disabled={!l.available} onChange={(e) => setLine(i, { qtyApproved: Number(e.target.value) })} style={{ padding: "5px 8px", width: 80 }} />
                     : <span className="tabular">{num(l.qtyApproved)}</span>}
                 </td>
                 <td className="tabular">{money(l.unitPrice, false)}</td>

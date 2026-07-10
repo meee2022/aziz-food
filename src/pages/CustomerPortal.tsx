@@ -119,9 +119,9 @@ function NewOrder() {
                 <b className="text-primary tabular">{money(p.sell, false)}</b>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <button type="button" className="btn-ghost" onClick={() => set(p.itemId, q - 1)} style={{ padding: 0, width: 34, height: 34, minWidth: 34, fontSize: 20, fontWeight: 800 }}>−</button>
-                <input className="field tabular" type="number" min="0" step="0.25" value={q} onChange={(e) => set(p.itemId, Number(e.target.value))} style={{ padding: "6px 4px", textAlign: "center" }} />
-                <button type="button" className="btn-ghost" onClick={() => set(p.itemId, q + 1)} style={{ padding: 0, width: 34, height: 34, minWidth: 34, fontSize: 18, fontWeight: 800 }}>+</button>
+                <button type="button" className="btn-ghost" onClick={() => set(p.itemId, q - (q <= 1 ? 0.1 : 1))} style={{ padding: 0, width: 34, height: 34, minWidth: 34, fontSize: 20, fontWeight: 800 }}>−</button>
+                <input className="field tabular" type="number" min="0" step="any" value={q} onChange={(e) => set(p.itemId, Number(e.target.value))} style={{ padding: "6px 4px", textAlign: "center" }} />
+                <button type="button" className="btn-ghost" onClick={() => set(p.itemId, q + (q < 1 ? 0.1 : 1))} style={{ padding: 0, width: 34, height: 34, minWidth: 34, fontSize: 18, fontWeight: 800 }}>+</button>
               </div>
             </div>
           );

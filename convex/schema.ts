@@ -148,6 +148,7 @@ export default defineSchema({
     customerName: v.string(),      // لقطة
     date: v.string(),              // YYYY-MM-DD
     location: v.optional(v.string()),   // الموقع
+    branch: v.optional(v.string()),     // الفرع (يكتبه المستخدم أو يتركه فارغًا)
     lpo: v.optional(v.string()),        // رقم الأوردر LPO#
     dn: v.optional(v.string()),         // أمر تسليم DN#
     status: v.union(

@@ -141,12 +141,22 @@ async function assertNumberFree(ctx: any, number: string, exceptId?: any) {
   if (found && found._id !== exceptId) throw new Error(`رقم الفاتورة "${number}" مستخدم بالفعل`);
 }
 
+/** نص اختياري: الفراغ = بدون قيمة. */
+const clean = (s?: string) => {
+  const x = s?.trim();
+  return x ? x : undefined;
+};
+/** عند التعديل: undefined = لم يُرسل الحقل (أبقِ القديم)، "" = امسحه. */
+const pick = (next: string | undefined, current: string | undefined) =>
+  next === undefined ? current : clean(next);
+
 export const create = mutation({
   args: {
     customerId: v.id("customers"),
     number: v.optional(v.string()),
     date: v.optional(v.string()),
     location: v.optional(v.string()),
+    branch: v.optional(v.string()),
     lpo: v.optional(v.string()),
     dn: v.optional(v.string()),
     lines: v.array(lineInput),
@@ -189,9 +199,10 @@ export const create = mutation({
       customerId: args.customerId,
       customerName: customer.name,
       date,
-      location: args.location,
-      lpo: args.lpo,
-      dn: args.dn,
+      location: clean(args.location),
+      branch: clean(args.branch),
+      lpo: clean(args.lpo),
+      dn: clean(args.dn),
       status,
       lines,
       subtotal: t.subtotal,
@@ -229,6 +240,7 @@ export const update = mutation({
     number: v.optional(v.string()),
     date: v.optional(v.string()),
     location: v.optional(v.string()),
+    branch: v.optional(v.string()),
     lpo: v.optional(v.string()),
     dn: v.optional(v.string()),
     lines: v.array(lineInput),
@@ -261,9 +273,10 @@ export const update = mutation({
       number: newNumber,
       customNumber,
       date: args.date ?? inv.date,
-      location: args.location ?? inv.location,
-      lpo: args.lpo ?? inv.lpo,
-      dn: args.dn ?? inv.dn,
+      location: pick(args.location, inv.location),
+      branch: pick(args.branch, inv.branch),
+      lpo: pick(args.lpo, inv.lpo),
+      dn: pick(args.dn, inv.dn),
       lines,
       subtotal: t.subtotal,
       discount: t.discount,

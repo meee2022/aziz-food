@@ -40,6 +40,7 @@ export default function InvoiceCreate() {
   // افتراضيًا: أسعار اليوم. لو فعّلها المستخدم تُستخدم أسعار تاريخ الفاتورة من سجل الأسعار.
   const [usePricesOfDate, setUsePricesOfDate] = useState(false);
   const [location, setLocation] = useState("");
+  const [branch, setBranch] = useState("");
   const [lpo, setLpo] = useState("");
   const [dn, setDn] = useState("");
   const [itemSearch, setItemSearch] = useState("");
@@ -71,7 +72,7 @@ export default function InvoiceCreate() {
       setLines(existing.lines.map((l: any) => ({ itemId: l.itemId, name: l.name, unit: l.unit, qty: l.qty, unitPrice: l.unitPrice, cost: l.cost })));
       setDiscountType(existing.discountType); setDiscountValue(existing.discountValue);
       setTaxPct(existing.taxPct); setNotes(existing.notes ?? ""); setDate(existing.date); setNumber(existing.number);
-      setLocation(existing.location ?? ""); setLpo(existing.lpo ?? ""); setDn(existing.dn ?? "");
+      setLocation(existing.location ?? ""); setBranch(existing.branch ?? ""); setLpo(existing.lpo ?? ""); setDn(existing.dn ?? "");
     }
   }, [editMode, existing]);
 
@@ -140,7 +141,7 @@ export default function InvoiceCreate() {
       const payload = {
         lines: lines.map((l) => ({ itemId: l.itemId as any, name: l.name, unit: l.unit, qty: Number(l.qty), unitPrice: Number(l.unitPrice), cost: Number(l.cost) })),
         discountType, discountValue: Number(discountValue), taxPct: Number(taxPct), notes: notes || undefined,
-        location: location || undefined, lpo: lpo || undefined, dn: dn || undefined,
+        location, branch, lpo, dn, // فراغ = امسح الحقل
       };
       if (editMode) {
         await updateInvoice({ id: id as any, date, number: number || undefined, ...payload, editedBy: user?.name });
@@ -274,13 +275,13 @@ export default function InvoiceCreate() {
                         </span>
                         {/* الكمية + إضافة */}
                         <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}>
-                          <button type="button" title="−1" onClick={() => setPickQtyOf(p.itemId, q - 1)}
+                          <button type="button" title={t("إنقاص", "Decrease")} onClick={() => setPickQtyOf(p.itemId, q - stepDown(q))}
                             style={{ width: 24, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", fontWeight: 800, fontSize: 15, lineHeight: 1 }}>−</button>
-                          <input className="tabular" type="number" min="0" step="0.25" value={q}
+                          <input className="tabular" type="number" min="0" step="any" value={q}
                             onChange={(e) => setPickQtyOf(p.itemId, Number(e.target.value))}
                             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(p, pickQtyOf(p.itemId)); } }}
-                            style={{ width: 46, height: 26, textAlign: "center", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", fontSize: 12, fontWeight: 700, color: "var(--ink)" }} />
-                          <button type="button" title="+1" onClick={() => setPickQtyOf(p.itemId, q + 1)}
+                            style={{ width: 50, height: 26, textAlign: "center", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", fontSize: 12, fontWeight: 700, color: "var(--ink)" }} />
+                          <button type="button" title={t("زيادة", "Increase")} onClick={() => setPickQtyOf(p.itemId, q + stepUp(q))}
                             style={{ width: 24, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", fontWeight: 800, fontSize: 14, lineHeight: 1 }}>+</button>
                           <button type="button" title={t("إضافة للفاتورة", "Add")} onClick={() => addItem(p, pickQtyOf(p.itemId))}
                             style={{ flex: 1, height: 26, borderRadius: 7, border: "1px solid var(--accent)", background: "color-mix(in srgb,var(--accent) 22%,transparent)", color: "var(--primary)", cursor: "pointer", fontWeight: 800, fontSize: 11, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 2 }}>
@@ -336,9 +337,9 @@ export default function InvoiceCreate() {
                       </td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                          <button type="button" className="btn-ghost" title="−1" onClick={() => setLine(i, { qty: Math.max(0, Math.round((l.qty - 1) * 100) / 100) })} style={{ padding: 0, width: 30, height: 34, minWidth: 30, fontSize: 20, fontWeight: 800, lineHeight: 1 }}>−</button>
-                          <input className="field tabular" type="number" step="0.25" min="0" value={l.qty} onChange={(e) => setLine(i, { qty: Number(e.target.value) })} style={{ padding: "6px 4px", width: 52, textAlign: "center" }} />
-                          <button type="button" className="btn-ghost" title="+1" onClick={() => setLine(i, { qty: Math.round((l.qty + 1) * 100) / 100 })} style={{ padding: 0, width: 30, height: 34, minWidth: 30, fontSize: 18, fontWeight: 800, lineHeight: 1 }}>+</button>
+                          <button type="button" className="btn-ghost" title={t("إنقاص", "Decrease")} onClick={() => setLine(i, { qty: Math.max(0, r2(l.qty - stepDown(l.qty))) })} style={{ padding: 0, width: 30, height: 34, minWidth: 30, fontSize: 20, fontWeight: 800, lineHeight: 1 }}>−</button>
+                          <input className="field tabular" type="number" step="any" min="0" value={l.qty} onChange={(e) => setLine(i, { qty: Number(e.target.value) })} style={{ padding: "6px 4px", width: 58, textAlign: "center" }} />
+                          <button type="button" className="btn-ghost" title={t("زيادة", "Increase")} onClick={() => setLine(i, { qty: r2(l.qty + stepUp(l.qty)) })} style={{ padding: 0, width: 30, height: 34, minWidth: 30, fontSize: 18, fontWeight: 800, lineHeight: 1 }}>+</button>
                         </div>
                       </td>
                       <td><input className="field tabular" type="number" step="0.25" value={l.unitPrice} onChange={(e) => setLine(i, { unitPrice: Number(e.target.value) })} style={{ padding: "6px 8px", width: 96, color: below ? "var(--danger)" : undefined, fontWeight: 700 }} /></td>
@@ -356,6 +357,10 @@ export default function InvoiceCreate() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
               <div className="card">
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <label className="label">{t("الفرع", "Branch")}</label>
+                    <input className="field" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder={t("اختياري", "optional")} />
+                  </div>
                   <div><label className="label">{t("الموقع", "Location")}</label><input className="field" value={location} onChange={(e) => setLocation(e.target.value)} /></div>
                   <div><label className="label">{t("رقم الأوردر LPO", "LPO #")}</label><input className="field" value={lpo} onChange={(e) => setLpo(e.target.value)} /></div>
                   <div><label className="label">{t("أمر التسليم DN", "DN #")}</label><input className="field" value={dn} onChange={(e) => setDn(e.target.value)} /></div>
@@ -415,13 +420,19 @@ export default function InvoiceCreate() {
   );
 }
 
-/** أوزان/كميات سريعة حسب وحدة الصنف: بالكيلو تظهر أوزان بالجرام/الكيلو، وغيرها أعداد. */
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** خطوة الزيادة/النقصان: أقل من وحدة كاملة ⇒ 100 جرام، وإلا وحدة كاملة. */
+const stepDown = (q: number) => (q <= 1 ? 0.1 : 1);
+const stepUp = (q: number) => (q < 1 ? 0.1 : 1);
+
+/** أوزان/كميات سريعة حسب وحدة الصنف: بالكيلو تظهر أوزان بالجرام/الكيلو، وغيرها أعداد (مع كسور للطلبات بالجرامات). */
 function qtyPresets(unit: string): [string, number][] {
   const u = (unit || "").toLowerCase();
   if (u.startsWith("kg") || u === "كجم" || u === "كيلو") {
-    return [["150g", 0.15], ["300g", 0.3], ["500g", 0.5], ["1kg", 1], ["2kg", 2], ["5kg", 5]];
+    return [["100g", 0.1], ["250g", 0.25], ["500g", 0.5], ["1kg", 1], ["2kg", 2], ["5kg", 5]];
   }
-  return [["1", 1], ["2", 2], ["3", 3], ["5", 5], ["10", 10]];
+  return [["0.1", 0.1], ["0.5", 0.5], ["1", 1], ["2", 2], ["3", 3], ["5", 5], ["10", 10]];
 }
 
 function Row({ label, value, big, accent }: { label: string; value: string; big?: boolean; accent?: boolean }) {
