@@ -5,6 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { PageHeader, Icon, Modal, Spinner } from "../components/ui";
+import { BASE_UNITS, parseCustomUnits } from "../lib/units";
 
 const ROLES: [string, string, string][] = [
   ["admin", "مدير", "Admin"], ["sales", "مبيعات", "Sales"],
@@ -177,6 +178,36 @@ export default function Settings() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* وحدات البيع */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
+          <div className="section-title">{t("وحدات البيع", "Sale Units")}</div>
+          <button className="btn-secondary" onClick={async () => {
+            const u = prompt(t("اسم الوحدة الجديدة (مثلاً Pkt100)", "New unit name (e.g. Pkt100)"))?.trim();
+            if (!u) return;
+            const cur = parseCustomUnits(settings.customUnits);
+            if (BASE_UNITS.includes(u) || cur.includes(u)) { alert(t("الوحدة موجودة بالفعل", "Unit already exists")); return; }
+            await setSetting({ key: "customUnits", value: [...cur, u].join(",") });
+          }}><Icon name="plus" size={15} /> {t("وحدة جديدة", "New unit")}</button>
+        </div>
+        <p className="text-muted" style={{ fontSize: 13, marginTop: 0 }}>
+          {t("تظهر في الأصناف والفواتير والوحدات الخاصة بالعملاء.", "Used in items, invoices and per-customer units.")}
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {BASE_UNITS.map((u) => <span key={u} className="pill badge-muted" title={t("وحدة أساسية", "built-in")}>{u}</span>)}
+          {parseCustomUnits(settings.customUnits).map((u) => (
+            <span key={u} className="pill badge-champion" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              {u}
+              <button className="btn-ghost" title={t("حذف", "Remove")} style={{ padding: 0, width: 18, height: 18, minWidth: 18, border: "none", background: "transparent" }}
+                onClick={async () => {
+                  if (!confirm(t(`حذف الوحدة "${u}"؟ (الأصناف المستخدمة لها لن تتغيّر)`, `Remove unit "${u}"?`))) return;
+                  await setSetting({ key: "customUnits", value: parseCustomUnits(settings.customUnits).filter((x) => x !== u).join(",") });
+                }}><Icon name="x" size={12} /></button>
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* التصنيفات */}

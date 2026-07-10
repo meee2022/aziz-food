@@ -7,7 +7,7 @@ import { useAuth } from "../lib/auth";
 import { money, num, formatDate, today, waPhone } from "../lib/format";
 import { PageHeader, Icon, Modal, Spinner, Empty } from "../components/ui";
 import { CUSTOMER_TYPES } from "./Customers";
-import { UNITS } from "../lib/units";
+import { useUnits, parseCustomUnits, BASE_UNITS } from "../lib/units";
 
 export default function CustomerDetail() {
   const { id } = useParams();
@@ -192,7 +192,23 @@ function SpecialPrices({ customerId, customers, copyFrom, setCopyFrom, onCopy }:
   const t = useT(); const { lang } = useLang();
   const prices = useQuery(api.customers.priceListFor, { customerId, date: today() });
   const setPrice = useMutation(api.customers.setCustomerPrice);
+  const setSetting = useMutation(api.settings.set);
+  const settings = useQuery(api.settings.all, {});
+  const UNITS = useUnits();
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
+
+  /** إضافة وحدة جديدة من داخل القائمة (للمدير) ثم اختيارها لهذا الصنف. */
+  const addUnitAndApply = async (itemId: any, currentPrice: number | undefined) => {
+    const u = prompt(t("اسم الوحدة الجديدة (مثلاً Pkt100)", "New unit name (e.g. Pkt100)"))?.trim();
+    if (!u) return;
+    const cur = parseCustomUnits(settings?.customUnits);
+    if (!BASE_UNITS.includes(u) && !cur.includes(u)) {
+      await setSetting({ key: "customUnits", value: [...cur, u].join(",") });
+    }
+    await setPrice({ customerId, itemId, price: currentPrice, unit: u });
+  };
+
   if (prices === undefined) return <Spinner />;
   const q = search.trim().toLowerCase();
   const rows = prices.filter((p: any) => !q || p.name.toLowerCase().includes(q) || (p.nameAr ?? "").includes(q));
@@ -224,9 +240,14 @@ function SpecialPrices({ customerId, customers, copyFrom, setCopyFrom, onCopy }:
                   <td style={{ fontWeight: 700 }}>{lang === "ar" ? (p.nameAr ?? p.name) : p.name}</td>
                   <td>
                     <select className="field" value={p.unit}
-                      onChange={(e) => { const u = e.target.value; setPrice({ customerId, itemId: p.itemId, price: customPrice, unit: u === baseUnit ? undefined : u }); }}
+                      onChange={(e) => {
+                        const u = e.target.value;
+                        if (u === "__add") { addUnitAndApply(p.itemId, customPrice); return; }
+                        setPrice({ customerId, itemId: p.itemId, price: customPrice, unit: u === baseUnit ? undefined : u });
+                      }}
                       style={{ padding: "5px 8px", fontWeight: unitOverride ? 800 : 400, color: unitOverride ? "var(--accent-dark)" : undefined }}>
                       {[...new Set([baseUnit, ...UNITS])].map((u) => <option key={u} value={u}>{u}{u === baseUnit ? ` (${t("أساسي", "base")})` : ""}</option>)}
+                      {user?.role === "admin" && <option value="__add">＋ {t("وحدة جديدة…", "New unit…")}</option>}
                     </select>
                   </td>
                   <td className="tabular" style={{ fontWeight: 700 }}>{money(p.sell, false)}</td>

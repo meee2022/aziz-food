@@ -157,8 +157,8 @@ export const setCustomerPrice = mutation({
       if (existing) await ctx.db.delete(existing._id); // رجوع كامل للافتراضي
       return;
     }
-    const item = await ctx.db.get(args.itemId);
-    const price = noPrice ? (item?.defaultSell ?? 0) : args.price!;
+    // سعر غير محدّد ⇒ يبقى السعر ديناميكيًا (وحدة خاصة فقط)
+    const price = noPrice ? undefined : args.price;
     const unit = noUnit ? undefined : args.unit;
 
     if (existing) await ctx.db.patch(existing._id, { price, unit });
@@ -219,6 +219,7 @@ export const copyCustomerPrices = mutation({
         customerId: args.toId,
         itemId: s.itemId,
         price: s.price,
+        unit: s.unit,
       });
     }
     // انسخ أيضًا قائمة الأسعار والخصم

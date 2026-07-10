@@ -7,7 +7,7 @@ import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, num, today } from "../lib/format";
 import { PageHeader, Icon, Spinner, Empty } from "../components/ui";
-import { UNITS } from "../lib/units";
+import { useUnits } from "../lib/units";
 
 interface Line { itemId?: string; name: string; unit: string; qty: number; unitPrice: number; cost: number; }
 
@@ -34,6 +34,7 @@ export default function InvoiceCreate() {
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(today());
   const [number, setNumber] = useState(""); // فارغ = ترقيم تلقائي
+  const UNITS = useUnits();
   // افتراضيًا: أسعار اليوم. لو فعّلها المستخدم تُستخدم أسعار تاريخ الفاتورة من سجل الأسعار.
   const [usePricesOfDate, setUsePricesOfDate] = useState(false);
   const [location, setLocation] = useState("");

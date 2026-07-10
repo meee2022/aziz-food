@@ -45,17 +45,25 @@ export async function effectivePrice(
   const baseSell = daily?.sell ?? item?.defaultSell ?? 0;
   const cost = daily?.cost ?? item?.defaultCost ?? 0;
 
+  let unitOverride: string | undefined;
+
   if (args.customerId) {
     const customer = await ctx.db.get(args.customerId);
 
-    // 1) سعر خاص بالعميل (وقد يحمل وحدة بيع خاصة)
+    // 1) تخصيص العميل: قد يحمل سعرًا خاصًا و/أو وحدة بيع خاصة
     const cp = await ctx.db
       .query("customerPrices")
       .withIndex("by_customer_item", (q) =>
         q.eq("customerId", args.customerId!).eq("itemId", args.itemId),
       )
       .first();
-    if (cp) return { sell: cp.price, cost, source: "customer", unit: cp.unit };
+    if (cp) {
+      unitOverride = cp.unit;
+      // سعر خاص فقط إن كان محدّدًا؛ وإلا نكمل لتحديد السعر ديناميكيًا مع إبقاء الوحدة
+      if (cp.price !== undefined && cp.price !== null) {
+        return { sell: cp.price, cost, source: "customer", unit: unitOverride };
+      }
+    }
 
     // 2) و 3) قائمة أسعار العميل
     if (customer?.priceListId) {
@@ -65,17 +73,17 @@ export async function effectivePrice(
           q.eq("priceListId", customer.priceListId!).eq("itemId", args.itemId),
         )
         .first();
-      if (pli) return { sell: pli.price, cost, source: "priceList" };
+      if (pli) return { sell: pli.price, cost, source: "priceList", unit: unitOverride };
 
       const list = await ctx.db.get(customer.priceListId);
       if (list?.marginPct) {
         const sell = round2(baseSell * (1 + list.marginPct / 100));
-        return { sell, cost, source: "listMargin" };
+        return { sell, cost, source: "listMargin", unit: unitOverride };
       }
     }
   }
 
-  return { sell: baseSell, cost, source: "default" };
+  return { sell: baseSell, cost, source: "default", unit: unitOverride };
 }
 
 export function round2(n: number): number {

@@ -99,8 +99,8 @@ export default defineSchema({
   customerPrices: defineTable({
     customerId: v.id("customers"),
     itemId: v.id("items"),
-    price: v.number(),
-    unit: v.optional(v.string()), // مثال: الموز بالكرتونة لهذا العميل بدل الكيلو
+    price: v.optional(v.number()), // اختياري: يمكن تخصيص الوحدة فقط دون تجميد السعر
+    unit: v.optional(v.string()),  // مثال: الموز بالكرتونة لهذا العميل بدل الكيلو
   })
     .index("by_customer", ["customerId"])
     .index("by_customer_item", ["customerId", "itemId"]),

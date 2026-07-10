@@ -7,7 +7,7 @@ import { money, num, today, formatDate } from "../lib/format";
 import { readExcelRaw, guessItemRow, exportExcel } from "../lib/xlsx";
 import { PageHeader, Icon, Modal, Spinner, Empty } from "../components/ui";
 
-import { UNITS } from "../lib/units";
+import { useUnits } from "../lib/units";
 
 export default function Items() {
   const t = useT();
@@ -137,6 +137,7 @@ export default function Items() {
 
 function ItemModal({ item, cats, onClose, onSave }: any) {
   const t = useT(); const { lang } = useLang();
+  const UNITS = useUnits();
   const [f, setF] = useState({
     nameEn: item.nameEn ?? "", nameAr: item.nameAr ?? "", unit: item.unit ?? "KG",
     categoryId: item.categoryId ?? "", defaultCost: item.todayCost ?? item.defaultCost ?? 0,
