@@ -32,6 +32,8 @@ export default function InvoiceCreate() {
   const [taxPct, setTaxPct] = useState(0);
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(today());
+  // افتراضيًا: أسعار اليوم. لو فعّلها المستخدم تُستخدم أسعار تاريخ الفاتورة من سجل الأسعار.
+  const [usePricesOfDate, setUsePricesOfDate] = useState(false);
   const [location, setLocation] = useState("");
   const [lpo, setLpo] = useState("");
   const [dn, setDn] = useState("");
@@ -42,8 +44,9 @@ export default function InvoiceCreate() {
   const itemInputRef = useRef<HTMLInputElement>(null);
 
   // أسعار الأصناف الفعّالة للعميل المختار + التصنيفات
-  // الأسعار دائمًا أسعار اليوم — تاريخ الفاتورة هو تاريخ المستند/التسليم فقط ولا يغيّر التسعير
-  const prices = useQuery(api.customers.priceListFor, customerId ? { customerId: customerId as any, date: today() } : { date: today() });
+  // تاريخ التسعير: أسعار اليوم افتراضيًا، أو أسعار تاريخ الفاتورة إن اختار المستخدم ذلك
+  const pricingDate = usePricesOfDate ? date : today();
+  const prices = useQuery(api.customers.priceListFor, customerId ? { customerId: customerId as any, date: pricingDate } : { date: pricingDate });
   const cats = useQuery(api.categories.list, {});
 
   // تحميل فاتورة للتعديل
@@ -140,6 +143,13 @@ export default function InvoiceCreate() {
           <div>
             <label className="label" style={{ marginBottom: 2 }}>{t("تاريخ الفاتورة", "Invoice date")}</label>
             <input className="field tabular" type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ minWidth: 170 }} />
+            {date !== today() && (
+              <label title={t("افتراضيًا تُستخدم أسعار اليوم", "Default: today's prices")}
+                style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 12, fontWeight: 700, color: usePricesOfDate ? "var(--accent-dark)" : "var(--muted)", cursor: "pointer" }}>
+                <input type="checkbox" checked={usePricesOfDate} onChange={(e) => setUsePricesOfDate(e.target.checked)} style={{ width: 15, height: 15 }} />
+                {t("استخدام أسعار هذا التاريخ", "Use that date's prices")}
+              </label>
+            )}
           </div>
         } />
 
