@@ -95,11 +95,12 @@ export default defineSchema({
     .index("by_list", ["priceListId"])
     .index("by_list_item", ["priceListId", "itemId"]),
 
-  // سعر خاص لصنف محدد لعميل محدد (أعلى أولوية)
+  // سعر خاص لصنف محدد لعميل محدد (أعلى أولوية) + وحدة بيع خاصة اختيارية
   customerPrices: defineTable({
     customerId: v.id("customers"),
     itemId: v.id("items"),
     price: v.number(),
+    unit: v.optional(v.string()), // مثال: الموز بالكرتونة لهذا العميل بدل الكيلو
   })
     .index("by_customer", ["customerId"])
     .index("by_customer_item", ["customerId", "itemId"]),

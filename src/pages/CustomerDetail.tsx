@@ -7,6 +7,7 @@ import { useAuth } from "../lib/auth";
 import { money, num, formatDate, today, waPhone } from "../lib/format";
 import { PageHeader, Icon, Modal, Spinner, Empty } from "../components/ui";
 import { CUSTOMER_TYPES } from "./Customers";
+import { UNITS } from "../lib/units";
 
 export default function CustomerDetail() {
   const { id } = useParams();
@@ -212,26 +213,37 @@ function SpecialPrices({ customerId, customers, copyFrom, setCopyFrom, onCopy }:
       </div>
       <div className="card" style={{ padding: 0, overflowX: "auto" }}>
         <table className="data-table">
-          <thead><tr><th>{t("الصنف", "Item")}</th><th>{t("الوحدة", "Unit")}</th><th>{t("السعر الفعّال", "Effective")}</th><th>{t("المصدر", "Source")}</th><th style={{ width: 140 }}>{t("سعر خاص", "Custom")}</th></tr></thead>
+          <thead><tr><th>{t("الصنف", "Item")}</th><th style={{ width: 130 }}>{t("وحدة خاصة", "Custom unit")}</th><th>{t("السعر الفعّال", "Effective")}</th><th>{t("المصدر", "Source")}</th><th style={{ width: 140 }}>{t("سعر خاص", "Custom price")}</th></tr></thead>
           <tbody>
-            {rows.map((p: any) => (
-              <tr key={p.itemId}>
-                <td style={{ fontWeight: 700 }}>{lang === "ar" ? (p.nameAr ?? p.name) : p.name}</td>
-                <td><span className="pill badge-muted">{p.unit}</span></td>
-                <td className="tabular" style={{ fontWeight: 700 }}>{money(p.sell, false)}</td>
-                <td><span className={"pill " + (p.source === "customer" ? "badge-champion" : "badge-muted")}>{sourceLabel[p.source]}</span></td>
-                <td>
-                  <input className="field tabular" type="number" placeholder="—" defaultValue={p.source === "customer" ? p.sell : ""}
-                    onBlur={(e) => { const v = e.target.value.trim(); setPrice({ customerId, itemId: p.itemId, price: v === "" ? undefined : Number(v) }); }}
-                    style={{ padding: "6px 8px" }} />
-                </td>
-              </tr>
-            ))}
+            {rows.map((p: any) => {
+              const baseUnit = p.baseUnit ?? p.unit;
+              const unitOverride = p.unit !== baseUnit ? p.unit : undefined;   // وحدة خاصة إن اختلفت عن وحدة الصنف
+              const customPrice = p.source === "customer" ? p.sell : undefined;
+              return (
+                <tr key={p.itemId}>
+                  <td style={{ fontWeight: 700 }}>{lang === "ar" ? (p.nameAr ?? p.name) : p.name}</td>
+                  <td>
+                    <select className="field" value={p.unit}
+                      onChange={(e) => { const u = e.target.value; setPrice({ customerId, itemId: p.itemId, price: customPrice, unit: u === baseUnit ? undefined : u }); }}
+                      style={{ padding: "5px 8px", fontWeight: unitOverride ? 800 : 400, color: unitOverride ? "var(--accent-dark)" : undefined }}>
+                      {[...new Set([baseUnit, ...UNITS])].map((u) => <option key={u} value={u}>{u}{u === baseUnit ? ` (${t("أساسي", "base")})` : ""}</option>)}
+                    </select>
+                  </td>
+                  <td className="tabular" style={{ fontWeight: 700 }}>{money(p.sell, false)}</td>
+                  <td><span className={"pill " + (p.source === "customer" ? "badge-champion" : "badge-muted")}>{sourceLabel[p.source]}</span></td>
+                  <td>
+                    <input className="field tabular" type="number" placeholder="—" defaultValue={customPrice ?? ""}
+                      onBlur={(e) => { const v = e.target.value.trim(); setPrice({ customerId, itemId: p.itemId, price: v === "" ? undefined : Number(v), unit: unitOverride }); }}
+                      style={{ padding: "6px 8px" }} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
       <div className="text-muted" style={{ fontSize: 12, marginTop: 10 }}>
-        {t("اكتب سعرًا خاصًا واضغط خارج الحقل للحفظ. اتركه فارغًا لاستخدام السعر الافتراضي.", "Type a custom price and click outside to save. Leave empty to use default.")}
+        {t("السعر: اكتبه واضغط خارج الحقل للحفظ (فارغ = السعر الافتراضي). الوحدة: اخترها لتصبح خاصة بهذا العميل (مثلاً الموز بالكرتونة).", "Price: type and blur to save (empty = default). Unit: pick a custom unit for this customer (e.g. bananas by carton).")}
       </div>
     </div>
   );

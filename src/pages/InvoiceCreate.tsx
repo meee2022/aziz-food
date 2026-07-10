@@ -7,6 +7,7 @@ import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, num, today } from "../lib/format";
 import { PageHeader, Icon, Spinner, Empty } from "../components/ui";
+import { UNITS } from "../lib/units";
 
 interface Line { itemId?: string; name: string; unit: string; qty: number; unitPrice: number; cost: number; }
 
@@ -32,6 +33,7 @@ export default function InvoiceCreate() {
   const [taxPct, setTaxPct] = useState(0);
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(today());
+  const [number, setNumber] = useState(""); // فارغ = ترقيم تلقائي
   // افتراضيًا: أسعار اليوم. لو فعّلها المستخدم تُستخدم أسعار تاريخ الفاتورة من سجل الأسعار.
   const [usePricesOfDate, setUsePricesOfDate] = useState(false);
   const [location, setLocation] = useState("");
@@ -56,7 +58,7 @@ export default function InvoiceCreate() {
       setCustomerId(existing.customerId);
       setLines(existing.lines.map((l: any) => ({ itemId: l.itemId, name: l.name, unit: l.unit, qty: l.qty, unitPrice: l.unitPrice, cost: l.cost })));
       setDiscountType(existing.discountType); setDiscountValue(existing.discountValue);
-      setTaxPct(existing.taxPct); setNotes(existing.notes ?? ""); setDate(existing.date);
+      setTaxPct(existing.taxPct); setNotes(existing.notes ?? ""); setDate(existing.date); setNumber(existing.number);
       setLocation(existing.location ?? ""); setLpo(existing.lpo ?? ""); setDn(existing.dn ?? "");
     }
   }, [editMode, existing]);
@@ -124,12 +126,15 @@ export default function InvoiceCreate() {
         location: location || undefined, lpo: lpo || undefined, dn: dn || undefined,
       };
       if (editMode) {
-        await updateInvoice({ id: id as any, date, ...payload, editedBy: user?.name });
+        await updateInvoice({ id: id as any, date, number: number || undefined, ...payload, editedBy: user?.name });
         navigate(`/invoice/${id}`);
       } else {
-        const res = await createInvoice({ customerId: customerId as any, date, ...payload, status: approve ? "approved" : "draft", createdBy: user?.name });
+        const res = await createInvoice({ customerId: customerId as any, date, number: number || undefined, ...payload, status: approve ? "approved" : "draft", createdBy: user?.name });
         navigate(`/invoice/${res.id}`);
       }
+    } catch (e: any) {
+      const m = String(e?.message ?? e).match(/Uncaught Error:\s*([^\n]+)/);
+      alert((m ? m[1] : String(e?.message ?? e)).replace(/\s+at\s.*$/, "").trim() || t("تعذّر الحفظ", "Could not save"));
     } finally { setSaving(false); }
   };
 
@@ -139,7 +144,13 @@ export default function InvoiceCreate() {
     <div className="animate-in">
       <PageHeader title={editMode ? t("تعديل فاتورة", "Edit Invoice") : t("فاتورة جديدة", "New Invoice")}
         subtitle={date !== today() ? t("تاريخ مخصّص", "Custom date") : undefined}
-        actions={
+        actions={<>
+          <div>
+            <label className="label" style={{ marginBottom: 2 }}>{t("رقم الفاتورة", "Invoice #")}</label>
+            <input className="field tabular" value={number} onChange={(e) => setNumber(e.target.value)}
+              placeholder={t("تلقائي", "auto")} style={{ minWidth: 150, direction: "ltr", textAlign: "start" }} />
+            {!editMode && !number && <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>{t("اتركه فارغًا للترقيم التلقائي", "leave empty = auto")}</div>}
+          </div>
           <div>
             <label className="label" style={{ marginBottom: 2 }}>{t("تاريخ الفاتورة", "Invoice date")}</label>
             <input className="field tabular" type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ minWidth: 170 }} />
@@ -151,7 +162,7 @@ export default function InvoiceCreate() {
               </label>
             )}
           </div>
-        } />
+        </>} />
 
       {/* اختيار العميل */}
       <div className="card" style={{ marginBottom: 14 }}>
@@ -261,7 +272,14 @@ export default function InvoiceCreate() {
                   return (
                     <tr key={i} style={below ? { background: "var(--danger-bg)" } : undefined}>
                       <td>
-                        <div style={{ fontWeight: 700 }}>{l.name} <span className="pill badge-muted">{l.unit}</span></div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <span style={{ fontWeight: 700 }}>{l.name}</span>
+                          <select value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })}
+                            title={t("وحدة البيع لهذا السطر", "Unit for this line")}
+                            style={{ fontSize: 11, fontWeight: 700, padding: "2px 6px", borderRadius: 999, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--ink)", cursor: "pointer" }}>
+                            {[...new Set([l.unit, ...UNITS])].map((u) => <option key={u} value={u}>{u}</option>)}
+                          </select>
+                        </div>
                         {below && <div className="text-danger" style={{ fontSize: 11, color: "var(--danger)" }}><Icon name="alert" size={11} /> {t("أقل من التكلفة", "Below cost")} ({money(l.cost, false)})</div>}
                         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>
                           {qtyPresets(l.unit).map(([label, q]) => (

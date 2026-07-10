@@ -31,7 +31,7 @@ export const place = customerMutation({
       if (!it) continue;
       const p = await effectivePrice(ctx, { itemId: l.itemId, customerId, date });
       lines.push({
-        itemId: l.itemId, name: it.nameEn, unit: it.unit,
+        itemId: l.itemId, name: it.nameEn, unit: p.unit || it.unit,
         qtyRequested: l.qty, qtyApproved: l.qty, available: true,
         unitPrice: p.sell, cost: p.cost,
       });
@@ -69,7 +69,7 @@ export const myItems = customerQuery({
     for (const it of items) {
       const p = await effectivePrice(ctx, { itemId: it._id, customerId: ctx.user.customerId, date });
       out.push({
-        itemId: it._id, name: it.nameEn, nameAr: it.nameAr, unit: it.unit,
+        itemId: it._id, name: it.nameEn, nameAr: it.nameAr, unit: p.unit || it.unit,
         categoryId: it.categoryId,
         category: it.categoryId ? catMap.get(it.categoryId) ?? null : null,
         sell: p.sell,

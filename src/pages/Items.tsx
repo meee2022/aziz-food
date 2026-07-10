@@ -7,7 +7,7 @@ import { money, num, today, formatDate } from "../lib/format";
 import { readExcelRaw, guessItemRow, exportExcel } from "../lib/xlsx";
 import { PageHeader, Icon, Modal, Spinner, Empty } from "../components/ui";
 
-const UNITS = ["KG", "Box", "Pkt125", "Pkt250", "Pkt170", "Bunch", "Piece", "Carton"];
+import { UNITS } from "../lib/units";
 
 export default function Items() {
   const t = useT();

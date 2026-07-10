@@ -100,9 +100,16 @@ export const outstanding = query({
   },
 });
 
+/** يتحقق أن رقم الفاتورة غير مستخدم (يتجاهل الفاتورة نفسها عند التعديل). */
+async function assertNumberFree(ctx: any, number: string, exceptId?: any) {
+  const found = await ctx.db.query("invoices").withIndex("by_number", (q: any) => q.eq("number", number)).first();
+  if (found && found._id !== exceptId) throw new Error(`رقم الفاتورة "${number}" مستخدم بالفعل`);
+}
+
 export const create = mutation({
   args: {
     customerId: v.id("customers"),
+    number: v.optional(v.string()),
     date: v.optional(v.string()),
     location: v.optional(v.string()),
     lpo: v.optional(v.string()),
@@ -130,7 +137,13 @@ export const create = mutation({
     }));
     const t = computeTotals(lines, dType, dValue, taxPct);
     const belowCost = lines.some((l) => l.unitPrice < l.cost);
-    const number = await nextInvoiceNumber(ctx);
+    let number: string;
+    if (args.number && args.number.trim()) {
+      number = args.number.trim();
+      await assertNumberFree(ctx, number);
+    } else {
+      number = await nextInvoiceNumber(ctx);
+    }
     const now = Date.now();
 
     const id = await ctx.db.insert("invoices", {
@@ -175,6 +188,7 @@ export const create = mutation({
 export const update = mutation({
   args: {
     id: v.id("invoices"),
+    number: v.optional(v.string()),
     date: v.optional(v.string()),
     location: v.optional(v.string()),
     lpo: v.optional(v.string()),
@@ -197,7 +211,14 @@ export const update = mutation({
     const lines = args.lines.map((l) => ({ ...l, lineTotal: round2(l.qty * l.unitPrice) }));
     const t = computeTotals(lines, dType, dValue, taxPct);
 
+    let newNumber = inv.number;
+    if (args.number && args.number.trim() && args.number.trim() !== inv.number) {
+      newNumber = args.number.trim();
+      await assertNumberFree(ctx, newNumber, args.id);
+    }
+
     await ctx.db.patch(args.id, {
+      number: newNumber,
       date: args.date ?? inv.date,
       location: args.location ?? inv.location,
       lpo: args.lpo ?? inv.lpo,

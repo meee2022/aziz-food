@@ -121,7 +121,8 @@ export const priceListFor = query({
         itemId: it._id,
         name: it.nameEn,
         nameAr: it.nameAr,
-        unit: it.unit,
+        unit: p.unit || it.unit,   // وحدة خاصة بالعميل إن وُجدت
+        baseUnit: it.unit,
         categoryId: it.categoryId,
         sell: p.sell,
         cost: p.cost,
@@ -132,9 +133,14 @@ export const priceListFor = query({
   },
 });
 
-/** حفظ سعر خاص لصنف لعميل (upsert). سعر صفر أو فارغ = حذف الخاص. */
+/** حفظ سعر و/أو وحدة خاصة لصنف لعميل (upsert). سعر فارغ بدون وحدة = حذف التخصيص. */
 export const setCustomerPrice = mutation({
-  args: { customerId: v.id("customers"), itemId: v.id("items"), price: v.optional(v.number()) },
+  args: {
+    customerId: v.id("customers"),
+    itemId: v.id("items"),
+    price: v.optional(v.number()),
+    unit: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("customerPrices")
@@ -142,17 +148,21 @@ export const setCustomerPrice = mutation({
         q.eq("customerId", args.customerId).eq("itemId", args.itemId),
       )
       .first();
-    if (args.price === undefined || args.price === null) {
-      if (existing) await ctx.db.delete(existing._id);
+
+    // الواجهة ترسل الحالة الكاملة المطلوبة (سعر + وحدة) في كل مرة
+    const noPrice = args.price === undefined || args.price === null;
+    const noUnit = !args.unit;
+
+    if (noPrice && noUnit) {
+      if (existing) await ctx.db.delete(existing._id); // رجوع كامل للافتراضي
       return;
     }
-    if (existing) await ctx.db.patch(existing._id, { price: args.price });
-    else
-      await ctx.db.insert("customerPrices", {
-        customerId: args.customerId,
-        itemId: args.itemId,
-        price: args.price,
-      });
+    const item = await ctx.db.get(args.itemId);
+    const price = noPrice ? (item?.defaultSell ?? 0) : args.price!;
+    const unit = noUnit ? undefined : args.unit;
+
+    if (existing) await ctx.db.patch(existing._id, { price, unit });
+    else await ctx.db.insert("customerPrices", { customerId: args.customerId, itemId: args.itemId, price, unit });
   },
 });
 

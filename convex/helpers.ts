@@ -39,7 +39,7 @@ export async function effectivePrice(
     customerId?: Id<"customers"> | null;
     date: string;
   },
-): Promise<{ sell: number; cost: number; source: string }> {
+): Promise<{ sell: number; cost: number; source: string; unit?: string }> {
   const item = await ctx.db.get(args.itemId);
   const daily = await priceOnDate(ctx, args.itemId, args.date);
   const baseSell = daily?.sell ?? item?.defaultSell ?? 0;
@@ -48,14 +48,14 @@ export async function effectivePrice(
   if (args.customerId) {
     const customer = await ctx.db.get(args.customerId);
 
-    // 1) سعر خاص بالعميل
+    // 1) سعر خاص بالعميل (وقد يحمل وحدة بيع خاصة)
     const cp = await ctx.db
       .query("customerPrices")
       .withIndex("by_customer_item", (q) =>
         q.eq("customerId", args.customerId!).eq("itemId", args.itemId),
       )
       .first();
-    if (cp) return { sell: cp.price, cost, source: "customer" };
+    if (cp) return { sell: cp.price, cost, source: "customer", unit: cp.unit };
 
     // 2) و 3) قائمة أسعار العميل
     if (customer?.priceListId) {
