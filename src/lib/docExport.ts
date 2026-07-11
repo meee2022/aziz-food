@@ -26,6 +26,46 @@ function header(s: Company) {
 
 const fileBase = (s: Company, n: string) => `${(s.companyNameEn || "MADAME-TRADING").trim().replace(/\s+/g, "-")}-${n}`;
 
+/* ─────────────── أدوات تنسيق Excel (xlsx-js-style) ─────────────── */
+const PRIMARY = "5C1523", GOLD = "C9A96E", GREEN = "0A7C3F", GREY = "6B6B6B", LINE = "D9CFC0";
+const B = { style: "thin", color: { rgb: LINE } };
+const BORDER = { top: B, bottom: B, left: B, right: B };
+const XS = {
+  coAr: { font: { bold: true, sz: 15, color: { rgb: GREEN } }, alignment: { horizontal: "right", vertical: "center" } },
+  coEn: { font: { bold: true, sz: 12, color: { rgb: GREEN } }, alignment: { horizontal: "right", vertical: "center" } },
+  info: { font: { sz: 9, color: { rgb: GREY } }, alignment: { horizontal: "right" } },
+  title: { fill: { fgColor: { rgb: PRIMARY } }, font: { bold: true, sz: 13, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center" } },
+  label: { font: { bold: true, color: { rgb: GREY } }, alignment: { horizontal: "right" }, border: BORDER },
+  value: { alignment: { horizontal: "right" }, border: BORDER },
+  th: { fill: { fgColor: { rgb: PRIMARY } }, font: { bold: true, sz: 10, color: { rgb: GOLD } }, alignment: { horizontal: "center", vertical: "center" }, border: BORDER },
+  cell: { alignment: { horizontal: "center" }, border: BORDER },
+  cellS: { alignment: { horizontal: "right" }, border: BORDER },
+  numCell: { alignment: { horizontal: "right" }, border: BORDER, numFmt: "#,##0.00" },
+  totLabel: { font: { bold: true, color: { rgb: GREY } }, alignment: { horizontal: "right" } },
+  totVal: { alignment: { horizontal: "right" }, numFmt: "#,##0.00" },
+  grandLabel: { fill: { fgColor: { rgb: PRIMARY } }, font: { bold: true, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "right" } },
+  grandVal: { fill: { fgColor: { rgb: PRIMARY } }, font: { bold: true, color: { rgb: GOLD } }, alignment: { horizontal: "right" }, numFmt: "#,##0.00" },
+} as const;
+
+/** يهيّئ ورقة منسّقة RTL: يكتب الخلايا مع أنماطها ويضبط الأعمدة والدمج. */
+function buildStyledSheet(XLSX: any, opts: {
+  cells: { r: number; c: number; v: any; t?: string; s?: any }[];
+  cols: number[]; merges?: { s: { r: number; c: number }; e: { r: number; c: number } }[]; rows?: number;
+}) {
+  const ws: any = {};
+  let maxR = 0, maxC = 0;
+  for (const cell of opts.cells) {
+    const addr = XLSX.utils.encode_cell({ r: cell.r, c: cell.c });
+    ws[addr] = { v: cell.v, t: cell.t ?? (typeof cell.v === "number" ? "n" : "s"), s: cell.s };
+    maxR = Math.max(maxR, cell.r); maxC = Math.max(maxC, cell.c);
+  }
+  ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(maxR, opts.rows ?? 0), c: maxC } });
+  ws["!cols"] = opts.cols.map((w) => ({ wch: w }));
+  ws["!merges"] = opts.merges ?? [];
+  ws["!views"] = [{ RTL: true }]; // ورقة من اليمين لليسار للعربية
+  return ws;
+}
+
 /* ─────────────── الفاتورة → Word (مستند HTML يفتحه Word منسّقًا) ─────────────── */
 export function invoiceToWord(inv: any, s: Company) {
   const h = header(s);
@@ -108,41 +148,71 @@ export function invoiceToWord(inv: any, s: Company) {
   download("﻿" + html, `${fileBase(s, inv.number)}.doc`, "application/msword");
 }
 
-/* ─────────────── الفاتورة → Excel (ورقة منسّقة بترويسة الشركة) ─────────────── */
+/* ─────────────── الفاتورة → Excel (ورقة منسّقة RTL بترويسة الشركة) ─────────────── */
 export async function invoiceToExcel(inv: any, s: Company) {
-  const XLSX = await import("xlsx");
+  const mod: any = await import("xlsx-js-style");
+  const XLSX = mod.default ?? mod;
   const h = header(s);
-  const M = "";
-  const aoa: any[][] = [
-    [h.nameAr, M, M, M, M, h.nameEn],
-    [`س.ت ${h.cr} — جوال ${h.phone}`, M, M, M, M, `CR. ${h.cr}, Mobile: ${h.phone}`],
-    [h.addrAr, M, M, M, M, h.email],
-    [],
-    ["فاتورة / INVOICE", M, M, M, M, M],
-    ["رقم الفاتورة", inv.number, M, "التاريخ", inv.date, M],
-    ["العميل", inv.customer?.nameEn || inv.customerName, M, "الفرع", inv.branch || "—", M],
-    ["الموقع", inv.location || "—", M, "الحالة", inv.status === "approved" ? "معتمدة" : inv.status === "draft" ? "مسودة" : "ملغاة", M],
-    [],
-    ["#", "الصنف / Item", "الكمية", "الوحدة", "السعر", "الإجمالي"],
-    ...inv.lines.map((l: any, i: number) => [i + 1, l.name, Number(num(l.qty).replace(/,/g, "")), l.unit, l.unitPrice, Math.round(l.qty * l.unitPrice * 100) / 100]),
-    [],
-    [M, M, M, M, "الإجمالي الفرعي", inv.subtotal],
-    ...(inv.discount > 0 ? [[M, M, M, M, "الخصم", -inv.discount]] : []),
-    ...(inv.taxAmount > 0 ? [[M, M, M, M, `الضريبة ${inv.taxPct}%`, inv.taxAmount]] : []),
-    [M, M, M, M, "الصافي (QR)", inv.total],
-    ...(inv.paidAmount > 0 ? [[M, M, M, M, "المدفوع", inv.paidAmount], [M, M, M, M, "المتبقي", Math.round((inv.total - inv.paidAmount) * 100) / 100]] : []),
-    [],
-    ["المبلغ كتابةً", amountInWordsEn(inv.total)],
-  ];
+  const statusAr = inv.status === "approved" ? "معتمدة" : inv.status === "draft" ? "مسودة" : "ملغاة";
 
-  const wordsRow = aoa.length - 1; // صف «المبلغ كتابةً» هو الأخير
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = [{ wch: 6 }, { wch: 34 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }];
-  ws["!merges"] = [
-    { s: { r: 4, c: 0 }, e: { r: 4, c: 5 } },              // عنوان INVOICE
-    { s: { r: wordsRow, c: 1 }, e: { r: wordsRow, c: 5 } }, // المبلغ كتابةً
-  ];
+  const cells: { r: number; c: number; v: any; t?: string; s?: any }[] = [];
+  const merges: any[] = [];
+  const put = (r: number, c: number, v: any, st?: any, t?: string) => cells.push({ r, c, v, s: st, t });
+  const full = (r: number) => merges.push({ s: { r, c: 0 }, e: { r, c: 5 } });
+
+  let R = 0;
+  put(R, 0, h.nameAr, XS.coAr); full(R++);
+  put(R, 0, h.nameEn, XS.coEn); full(R++);
+  put(R, 0, `س.ت ${h.cr} · جوال ${h.phone} · ${h.email}`, XS.info); full(R++);
+  R++; // فراغ
+  put(R, 0, "فاتورة  /  INVOICE", XS.title); full(R++);
+
+  // زوجان label/value لكل صف؛ القيمة تمتد على عمودين
+  const metaRow = (l1: string, v1: any, l2: string, v2: any) => {
+    put(R, 0, l1, XS.label); put(R, 1, v1, XS.value); put(R, 2, "", XS.value);
+    put(R, 3, l2, XS.label); put(R, 4, v2, XS.value); put(R, 5, "", XS.value);
+    merges.push({ s: { r: R, c: 1 }, e: { r: R, c: 2 } }, { s: { r: R, c: 4 }, e: { r: R, c: 5 } });
+    R++;
+  };
+  metaRow("رقم الفاتورة", inv.number, "التاريخ", inv.date);
+  metaRow("العميل", inv.customer?.nameEn || inv.customerName, "الفرع", inv.branch || "—");
+  metaRow("الحالة", statusAr, "الموقع", inv.location || "—");
+  R++; // فراغ
+
+  ["#", "الصنف / Item", "الكمية", "الوحدة", "السعر", "الإجمالي"].forEach((th, c) => put(R, c, th, XS.th));
+  R++;
+  for (let i = 0; i < inv.lines.length; i++) {
+    const l = inv.lines[i];
+    put(R, 0, i + 1, XS.cell, "n");
+    put(R, 1, l.name, XS.cellS);
+    put(R, 2, l.qty, XS.numCell, "n");
+    put(R, 3, l.unit, XS.cell);
+    put(R, 4, l.unitPrice, XS.numCell, "n");
+    put(R, 5, Math.round(l.qty * l.unitPrice * 100) / 100, XS.numCell, "n");
+    R++;
+  }
+  R++; // فراغ
+
+  const totRow = (label: string, val: number, grand = false) => {
+    put(R, 4, label, grand ? XS.grandLabel : XS.totLabel);
+    put(R, 5, val, grand ? XS.grandVal : XS.totVal, "n");
+    R++;
+  };
+  totRow("الإجمالي الفرعي", inv.subtotal);
+  if (inv.discount > 0) totRow("الخصم", -inv.discount);
+  if (inv.taxAmount > 0) totRow(`الضريبة ${inv.taxPct}%`, inv.taxAmount);
+  totRow("الصافي (QR)", inv.total, true);
+  if (inv.paidAmount > 0) { totRow("المدفوع", inv.paidAmount); totRow("المتبقي", Math.round((inv.total - inv.paidAmount) * 100) / 100); }
+  R++; // فراغ
+
+  put(R, 0, "المبلغ كتابةً", XS.label);
+  put(R, 1, amountInWordsEn(inv.total), XS.value);
+  for (let c = 2; c <= 5; c++) put(R, c, "", XS.value);
+  merges.push({ s: { r: R, c: 1 }, e: { r: R, c: 5 } });
+
+  const ws = buildStyledSheet(XLSX, { cells, merges, rows: R, cols: [6, 34, 10, 10, 13, 14] });
   const wb = XLSX.utils.book_new();
+  wb.Workbook = { Views: [{ RTL: true }] }; // اتجاه الورقة من اليمين لليسار
   XLSX.utils.book_append_sheet(wb, ws, "Invoice");
   XLSX.writeFile(wb, `${fileBase(s, inv.number)}.xlsx`);
 }
@@ -208,32 +278,48 @@ export function statementToWord(st: any, customer: any, s: Company, dateStr: str
   download("﻿" + html, `${stBase(s, customer.name)}.doc`, "application/msword");
 }
 
-/** كشف الحساب → Excel. */
+/** كشف الحساب → Excel (ورقة منسّقة RTL). */
 export async function statementToExcel(st: any, customer: any, s: Company, dateStr: string) {
-  const XLSX = await import("xlsx");
+  const mod: any = await import("xlsx-js-style");
+  const XLSX = mod.default ?? mod;
   const h = header(s);
-  const M = "";
-  const aoa: any[][] = [
-    [h.nameAr, M, M, M, h.nameEn],
-    [`س.ت ${h.cr} — جوال ${h.phone}`, M, M, M, h.email],
-    [],
-    ["كشف حساب / Statement", M, M, M, M],
-    ["العميل", customer.name, M, "التاريخ", dateStr],
-    ["إجمالي الفواتير", st.totalInvoiced, M, "المدفوع", st.totalPaid],
-    ["المرتجعات", st.totalReturned ?? 0, M, "الرصيد المتبقي", st.balance],
-    [],
-    ["التاريخ", "البيان", "مدين", "دائن", "الرصيد"],
-    ...st.ledger.map((r: any) => [
-      r.date,
-      (ROW_KIND[r.kind] ?? r.kind) + (r.ref && r.ref !== "—" ? " · " + r.ref : ""),
-      r.debit || "", r.credit || "", r.balance,
-    ]),
-  ];
 
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = [{ wch: 14 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 14 }];
-  ws["!merges"] = [{ s: { r: 3, c: 0 }, e: { r: 3, c: 4 } }];
+  const cells: { r: number; c: number; v: any; t?: string; s?: any }[] = [];
+  const merges: any[] = [];
+  const put = (r: number, c: number, v: any, st2?: any, t?: string) => cells.push({ r, c, v, s: st2, t });
+  const full = (r: number, e = 4) => merges.push({ s: { r, c: 0 }, e: { r, c: e } });
+
+  let R = 0;
+  put(R, 0, h.nameAr, XS.coAr); full(R++);
+  put(R, 0, h.nameEn, XS.coEn); full(R++);
+  put(R, 0, `س.ت ${h.cr} · جوال ${h.phone} · ${h.email}`, XS.info); full(R++);
+  R++;
+  put(R, 0, "كشف حساب  /  Statement of Account", XS.title); full(R++);
+
+  const metaRow = (l1: string, v1: any, l2: string, v2: any) => {
+    put(R, 0, l1, XS.label); put(R, 1, v1, XS.value);
+    put(R, 3, l2, XS.label); put(R, 4, v2, XS.value);
+    R++;
+  };
+  metaRow("العميل", customer.name, "التاريخ", dateStr);
+  metaRow("إجمالي الفواتير", st.totalInvoiced, "المدفوع", st.totalPaid);
+  metaRow("المرتجعات", st.totalReturned ?? 0, "الرصيد المتبقي", st.balance);
+  R++;
+
+  ["التاريخ", "البيان", "مدين", "دائن", "الرصيد"].forEach((th, c) => put(R, c, th, XS.th));
+  R++;
+  for (const row of st.ledger) {
+    put(R, 0, row.date, XS.cell);
+    put(R, 1, (ROW_KIND[row.kind] ?? row.kind) + (row.ref && row.ref !== "—" ? " · " + row.ref : ""), XS.cellS);
+    put(R, 2, row.debit || "", row.debit ? XS.numCell : XS.cell, row.debit ? "n" : "s");
+    put(R, 3, row.credit || "", row.credit ? XS.numCell : XS.cell, row.credit ? "n" : "s");
+    put(R, 4, row.balance, XS.numCell, "n");
+    R++;
+  }
+
+  const ws = buildStyledSheet(XLSX, { cells, merges, rows: R, cols: [15, 30, 13, 13, 15] });
   const wb = XLSX.utils.book_new();
+  wb.Workbook = { Views: [{ RTL: true }] }; // اتجاه الورقة من اليمين لليسار
   XLSX.utils.book_append_sheet(wb, ws, "Statement");
   XLSX.writeFile(wb, `${stBase(s, customer.name)}.xlsx`);
 }
