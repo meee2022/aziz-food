@@ -22,6 +22,7 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Orders from "./pages/Orders";
 import Returns from "./pages/Returns";
+import Aging from "./pages/Aging";
 import Expenses from "./pages/Expenses";
 import CustomerPortal from "./pages/CustomerPortal";
 
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="/invoices" element={S(<Invoices />)} />
             <Route path="/orders" element={S(<Orders />)} />
             <Route path="/returns" element={S(<Returns />)} />
+            <Route path="/aging" element={S(<Aging />)} />
             <Route path="/customers" element={S(<Customers />)} />
             <Route path="/customers/:id" element={S(<CustomerDetail />)} />
             <Route path="/items" element={S(<Items />)} />

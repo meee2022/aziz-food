@@ -44,7 +44,9 @@ export default function Dashboard() {
         <StatCard label={t("مبيعات اليوم", "Today Sales")} value={money(d.todaySales)} icon="money" />
         <StatCard label={t("أرباح اليوم", "Today Profit")} value={money(d.todayProfit)} icon="chart" accent />
         <StatCard label={t("عدد الفواتير", "Invoices")} value={num(d.todayCount, 0)} icon="invoice" />
-        <StatCard label={t("المديونيات", "Receivables")} value={money(d.totalReceivable)} icon="alert" accent sub={`${d.debtorCount} ${t("عميل", "clients")}`} />
+        <Link to="/aging" style={{ textDecoration: "none" }}>
+          <StatCard label={t("المديونيات", "Receivables")} value={money(d.totalReceivable)} icon="alert" accent sub={`${d.debtorCount} ${t("عميل — اضغط للمتابعة", "clients — tap to track")}`} />
+        </Link>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 22 }}>

@@ -82,7 +82,27 @@ export const overview = query({
     }
     if (notPricedToday > 0)
       alerts.push({ type: "notPriced", level: "warning", msg: `${notPricedToday} صنف لم يُحدَّث سعره اليوم` });
-    if (debtors.length)
+    // ديون متأخّرة (فواتير مضى عليها أكثر من 60 يومًا ولم تُسدَّد بترتيب الأقدم أولًا)
+    let overdueTotal = 0, overdueCustomers = 0;
+    for (const c of debtors) {
+      const invs = (await ctx.db.query("invoices").withIndex("by_customer", (q) => q.eq("customerId", c._id)).collect())
+        .filter((i) => i.status === "approved").sort((a, b) => a.date.localeCompare(b.date));
+      const pays = await ctx.db.query("payments").withIndex("by_customer", (q) => q.eq("customerId", c._id)).collect();
+      const rets = await ctx.db.query("returns").withIndex("by_customer", (q) => q.eq("customerId", c._id)).collect();
+      let credit = pays.reduce((s, p) => s + p.amount, 0) + rets.reduce((s, r) => s + r.total, 0);
+      let custOverdue = 0;
+      for (const inv of invs) {
+        let due = inv.total;
+        if (credit > 0) { const u = Math.min(credit, due); due -= u; credit -= u; }
+        if (due <= 0.009) continue;
+        const age = Math.floor((new Date(today + "T00:00:00Z").getTime() - new Date(inv.date + "T00:00:00Z").getTime()) / 86400000);
+        if (age > 60) custOverdue += due;
+      }
+      if (custOverdue > 0.009) { overdueTotal += custOverdue; overdueCustomers++; }
+    }
+    if (overdueCustomers > 0)
+      alerts.push({ type: "overdue", level: "danger", msg: `${overdueCustomers} عميل عليهم ديون متأخرة أكثر من 60 يومًا بإجمالي ${round2(overdueTotal)}` });
+    else if (debtors.length)
       alerts.push({ type: "debts", level: "info", msg: `${debtors.length} عميل عليهم مديونية بإجمالي ${totalReceivable}` });
 
     return {

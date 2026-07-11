@@ -1,6 +1,6 @@
 import { authQuery as query, authMutation as mutation, adminQuery, adminMutation } from "./auth";
 import { v } from "convex/values";
-import { effectivePrice, todayStr } from "./helpers";
+import { effectivePrice, todayStr, round2 } from "./helpers";
 
 /**
  * كلمة سر بوابة الطلبات لا تخرج أبدًا من هذه الدوال:
@@ -261,6 +261,64 @@ export const copyCustomerPrices = mutation({
     const from = await ctx.db.get(args.fromId);
     if (from) await ctx.db.patch(args.toId, { priceListId: from.priceListId, discountPct: from.discountPct });
     return { copied: source.length };
+  },
+});
+
+/**
+ * أعمار الديون: لكل عميل عليه رصيد، نوزّع مدفوعاته ومرتجعاته على أقدم الفواتير أولًا (FIFO)،
+ * والباقي غير المسدَّد نصنّفه حسب عمر الفاتورة: 0-30 / 31-60 / 61-90 / +90 يومًا.
+ */
+export const aging = query({
+  args: { asOf: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const asOf = todayStr(args.asOf);
+    const asOfMs = new Date(asOf + "T00:00:00Z").getTime();
+    const dayMs = 86400000;
+
+    const customers = await ctx.db.query("customers").collect();
+    const rows: any[] = [];
+    const totals = { b0: 0, b30: 0, b60: 0, b90: 0, total: 0 };
+
+    for (const c of customers) {
+      const invoices = (await ctx.db.query("invoices").withIndex("by_customer", (q) => q.eq("customerId", c._id)).collect())
+        .filter((i) => i.status === "approved")
+        .sort((a, b) => a.date.localeCompare(b.date)); // الأقدم أولًا
+      const payments = await ctx.db.query("payments").withIndex("by_customer", (q) => q.eq("customerId", c._id)).collect();
+      const returns = await ctx.db.query("returns").withIndex("by_customer", (q) => q.eq("customerId", c._id)).collect();
+
+      let credit = payments.reduce((s, p) => s + p.amount, 0) + returns.reduce((s, r) => s + r.total, 0);
+      const bucket = { b0: 0, b30: 0, b60: 0, b90: 0 };
+      let owed = 0;
+
+      for (const inv of invoices) {
+        let due = inv.total;
+        if (credit > 0) { const used = Math.min(credit, due); due -= used; credit -= used; } // سدِّد الأقدم أولًا
+        if (due <= 0.009) continue;
+        owed += due;
+        const ageDays = Math.floor((asOfMs - new Date(inv.date + "T00:00:00Z").getTime()) / dayMs);
+        if (ageDays <= 30) bucket.b0 += due;
+        else if (ageDays <= 60) bucket.b30 += due;
+        else if (ageDays <= 90) bucket.b60 += due;
+        else bucket.b90 += due;
+      }
+
+      if (owed > 0.009) {
+        const r = {
+          customerId: c._id, name: c.name, phone: c.phone ?? "",
+          total: round2(owed),
+          b0: round2(bucket.b0), b30: round2(bucket.b30), b60: round2(bucket.b60), b90: round2(bucket.b90),
+        };
+        rows.push(r);
+        totals.b0 += r.b0; totals.b30 += r.b30; totals.b60 += r.b60; totals.b90 += r.b90; totals.total += r.total;
+      }
+    }
+
+    rows.sort((a, b) => (b.b90 + b.b60) - (a.b90 + a.b60) || b.total - a.total); // الأكثر تأخّرًا أولًا
+    return {
+      asOf,
+      rows,
+      totals: { b0: round2(totals.b0), b30: round2(totals.b30), b60: round2(totals.b60), b90: round2(totals.b90), total: round2(totals.total) },
+    };
   },
 });
 
