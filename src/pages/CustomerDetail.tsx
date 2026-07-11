@@ -17,6 +17,7 @@ export default function CustomerDetail() {
   const navigate = useNavigate();
   const st = useQuery(api.customers.statement, { customerId: cid });
   const customers = useQuery(api.customers.list, { includeInactive: true });
+  const settings = useQuery(api.settings.all, {});
   const copyPrices = useMutation(api.customers.copyCustomerPrices);
 
   const [tab, setTab] = useState<"statement" | "prices">("statement");
@@ -42,12 +43,30 @@ export default function CustomerDetail() {
 
   return (
     <div className="animate-in">
-      <PageHeader title={c.name} subtitle={`${typeLabel(c.type)} ${c.area ? "· " + c.area : ""}`}
-        actions={<>
-          <Link to="/customers" className="btn-ghost"><Icon name="back" size={16} /> {t("رجوع", "Back")}</Link>
-          <button className="btn-secondary" onClick={sendStatementWhatsapp}><Icon name="whatsapp" size={16} /> {t("إرسال كشف", "Send")}</button>
-          <button className="btn-primary" onClick={() => setPayOpen(true)}><Icon name="money" size={16} /> {t("تسجيل دفعة", "Add Payment")}</button>
-        </>} />
+      <div className="no-print">
+        <PageHeader title={c.name} subtitle={`${typeLabel(c.type)} ${c.area ? "· " + c.area : ""}`}
+          actions={<>
+            <Link to="/customers" className="btn-ghost"><Icon name="back" size={16} /> {t("رجوع", "Back")}</Link>
+            {tab === "statement" && <button className="btn-ghost" onClick={() => window.print()}><Icon name="print" size={16} /> {t("طباعة كشف", "Print")}</button>}
+            <button className="btn-secondary" onClick={sendStatementWhatsapp}><Icon name="whatsapp" size={16} /> {t("إرسال كشف", "Send")}</button>
+            <button className="btn-primary" onClick={() => setPayOpen(true)}><Icon name="money" size={16} /> {t("تسجيل دفعة", "Add Payment")}</button>
+          </>} />
+      </div>
+
+      {/* ترويسة الطباعة فقط: اسم الشركة + العميل + التاريخ */}
+      <div className="print-only cd-print-head" style={{ display: "none", marginBottom: 12, borderBottom: "2px solid var(--primary)", paddingBottom: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: "#0a7c3f" }}>{settings?.companyName || "مدم مي للتجارة"}</div>
+            <div style={{ fontSize: 12, color: "#0a7c3f", fontFamily: "Inter, sans-serif" }}>{settings?.companyNameEn || "MADAME TRADING"}</div>
+          </div>
+          <div style={{ textAlign: "end" }}>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>{t("كشف حساب", "Statement of Account")}</div>
+            <div style={{ fontSize: 13 }}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</div>
+            <div className="text-muted" style={{ fontSize: 11 }}>{formatDate(today(), lang)}</div>
+          </div>
+        </div>
+      </div>
 
       {/* بطاقات ملخص */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 18 }}>
@@ -62,12 +81,14 @@ export default function CustomerDetail() {
         {c.contactPerson ? <span className="pill badge-muted" style={{ marginInlineStart: 6 }}>{c.contactPerson}</span> : null}
       </div>}
 
-      {user?.role === "admin" && <PortalAccess customerId={cid} customer={c} />}
+      {user?.role === "admin" && <div className="no-print"><PortalAccess customerId={cid} customer={c} /></div>}
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+      <div className="no-print" style={{ display: "flex", gap: 6, marginBottom: 14 }}>
         <button className={tab === "statement" ? "btn-primary" : "btn-ghost"} onClick={() => setTab("statement")}>{t("كشف الحساب", "Statement")}</button>
         <button className={tab === "prices" ? "btn-primary" : "btn-ghost"} onClick={() => setTab("prices")}>{t("الأسعار الخاصة", "Special Prices")}</button>
       </div>
+
+      <style>{`@media print { .print-only { display: block !important; } .cd-print-head { display: block !important; } }`}</style>
 
       {tab === "statement" ? (
         <div className="card" style={{ padding: 0, overflowX: "auto" }}>

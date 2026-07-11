@@ -23,6 +23,7 @@ import Settings from "./pages/Settings";
 import Orders from "./pages/Orders";
 import Returns from "./pages/Returns";
 import Aging from "./pages/Aging";
+import AuditLog from "./pages/AuditLog";
 import Expenses from "./pages/Expenses";
 import CustomerPortal from "./pages/CustomerPortal";
 
@@ -72,6 +73,7 @@ export default function App() {
             <Route path="/orders" element={S(<Orders />)} />
             <Route path="/returns" element={S(<Returns />)} />
             <Route path="/aging" element={S(<Aging />)} />
+            <Route path="/audit" element={S(<AuditLog />)} />
             <Route path="/customers" element={S(<Customers />)} />
             <Route path="/customers/:id" element={S(<CustomerDetail />)} />
             <Route path="/items" element={S(<Items />)} />

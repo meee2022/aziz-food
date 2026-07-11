@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as audit from "../audit.js";
 import type * as auth from "../auth.js";
 import type * as backup from "../backup.js";
 import type * as categories from "../categories.js";
@@ -39,6 +40,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  audit: typeof audit;
   auth: typeof auth;
   backup: typeof backup;
   categories: typeof categories;

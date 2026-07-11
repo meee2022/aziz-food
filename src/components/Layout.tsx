@@ -23,6 +23,7 @@ const NAV: NavItem[] = [
   { to: "/purchases", section: "purchases", icon: "cart", ar: "المشتريات", en: "Purchases" },
   { to: "/expenses", section: "expenses", icon: "money", ar: "المصروفات", en: "Expenses" },
   { to: "/reports", section: "reports", icon: "chart", ar: "التقارير", en: "Reports" },
+  { to: "/audit", section: "audit", icon: "clipboard", ar: "سجل النشاط", en: "Activity Log" },
   { to: "/settings", section: "settings", icon: "settings", ar: "الإعدادات", en: "Settings" },
 ];
 
