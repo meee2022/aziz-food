@@ -14,6 +14,7 @@ const NAV: NavItem[] = [
   { to: "/invoice/new", section: "invoice-new", icon: "plus", ar: "فاتورة جديدة", en: "New Invoice" },
   { to: "/invoices", section: "invoices", icon: "invoice", ar: "الفواتير", en: "Invoices" },
   { to: "/orders", section: "orders", icon: "clipboard", ar: "الطلبات", en: "Orders" },
+  { to: "/returns", section: "returns", icon: "back", ar: "المرتجعات", en: "Returns" },
   { to: "/customers", section: "customers", icon: "users", ar: "العملاء", en: "Customers" },
   { to: "/items", section: "items", icon: "box", ar: "الأصناف", en: "Items" },
   { to: "/prices", section: "prices", icon: "money", ar: "مركز الأسعار", en: "Price Center" },

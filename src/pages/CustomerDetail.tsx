@@ -75,9 +75,14 @@ export default function CustomerDetail() {
             <thead><tr><th>{t("التاريخ", "Date")}</th><th>{t("البيان", "Ref")}</th><th>{t("مدين", "Debit")}</th><th>{t("دائن", "Credit")}</th><th>{t("الرصيد", "Balance")}</th></tr></thead>
             <tbody>
               {st.ledger.map((row: any) => (
-                <tr key={row.id} style={{ cursor: "pointer" }} onClick={() => row.kind === "invoice" ? navigate(`/invoice/${row.id}`) : setEditPay(row)}>
+                <tr key={row.id} style={{ cursor: row.kind === "return" ? "default" : "pointer" }}
+                  onClick={() => row.kind === "invoice" ? navigate(`/invoice/${row.id}`) : row.kind === "payment" ? setEditPay(row) : undefined}>
                   <td>{formatDate(row.date, lang)}</td>
-                  <td>{row.kind === "invoice" ? <span className="pill badge-info">{row.ref}</span> : <span className="pill badge-success"><Icon name="edit" size={11} /> {t("دفعة", "Payment")}</span>}</td>
+                  <td>{
+                    row.kind === "invoice" ? <span className="pill badge-info">{row.ref}</span>
+                    : row.kind === "return" ? <span className="pill badge-warning"><Icon name="back" size={11} /> {t("مرتجع", "Return")}{row.ref !== "—" ? ` · ${row.ref}` : ""}</span>
+                    : <span className="pill badge-success"><Icon name="edit" size={11} /> {t("دفعة", "Payment")}</span>
+                  }</td>
                   <td className="tabular">{row.debit ? money(row.debit, false) : "—"}</td>
                   <td className="tabular">{row.credit ? money(row.credit, false) : "—"}</td>
                   <td className="tabular" style={{ fontWeight: 700 }}>{money(row.balance, false)}</td>

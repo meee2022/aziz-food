@@ -142,9 +142,14 @@ export async function recomputeBalance(ctx: MutationCtx, customerId: Id<"custome
     .query("payments")
     .withIndex("by_customer", (q) => q.eq("customerId", customerId))
     .collect();
+  const returns = await ctx.db
+    .query("returns")
+    .withIndex("by_customer", (q) => q.eq("customerId", customerId))
+    .collect();
   const invoiced = invoices.filter((i) => i.status === "approved").reduce((s, i) => s + i.total, 0);
   const paid = payments.reduce((s, p) => s + p.amount, 0);
-  await ctx.db.patch(customerId, { balance: round2(invoiced - paid) });
+  const returned = returns.reduce((s, r) => s + r.total, 0); // المرتجعات تُنقص المديونية
+  await ctx.db.patch(customerId, { balance: round2(invoiced - paid - returned) });
 }
 
 /** إعادة حساب "المدفوع" لفاتورة من مجموع ما خُصّص لها في كل الدفعات. */

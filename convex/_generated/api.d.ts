@@ -24,6 +24,7 @@ import type * as priceLists from "../priceLists.js";
 import type * as prices from "../prices.js";
 import type * as purchases from "../purchases.js";
 import type * as reports from "../reports.js";
+import type * as returns from "../returns.js";
 import type * as seed from "../seed.js";
 import type * as settings from "../settings.js";
 import type * as users from "../users.js";
@@ -51,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   prices: typeof prices;
   purchases: typeof purchases;
   reports: typeof reports;
+  returns: typeof returns;
   seed: typeof seed;
   settings: typeof settings;
   users: typeof users;

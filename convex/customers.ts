@@ -277,10 +277,15 @@ export const statement = query({
       .query("payments")
       .withIndex("by_customer", (q) => q.eq("customerId", customerId))
       .collect();
+    const returns = await ctx.db
+      .query("returns")
+      .withIndex("by_customer", (q) => q.eq("customerId", customerId))
+      .collect();
 
     const approved = invoices.filter((i) => i.status === "approved");
     const totalInvoiced = approved.reduce((s, i) => s + i.total, 0);
     const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
+    const totalReturned = returns.reduce((s, r) => s + r.total, 0);
 
     // حركة موحّدة مرتبة زمنيًا
     const ledger = [
@@ -305,6 +310,16 @@ export const statement = query({
         note: p.note ?? "",
         allocations: p.allocations ?? [],
       })),
+      ...returns.map((r) => ({
+        kind: "return" as const,
+        date: r.date,
+        ref: r.invoiceNumber ?? "—",
+        debit: 0,
+        credit: r.total, // المرتجع يُنقص المديونية مثل الدفعة
+        at: r.createdAt,
+        id: r._id,
+        note: r.note ?? "",
+      })),
     ].sort((a, b) => a.at - b.at);
 
     let running = 0;
@@ -317,7 +332,8 @@ export const statement = query({
       customer: customer ? publicCustomer(customer) : null,
       totalInvoiced,
       totalPaid,
-      balance: totalInvoiced - totalPaid,
+      totalReturned,
+      balance: totalInvoiced - totalPaid - totalReturned,
       invoiceCount: approved.length,
       lastPayment: payments.sort((a, b) => b.createdAt - a.createdAt)[0] ?? null,
       ledger: withBalance.reverse(),
