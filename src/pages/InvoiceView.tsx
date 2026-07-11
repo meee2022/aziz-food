@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, num, formatDate, formatDateTime, amountInWordsEn, waPhone } from "../lib/format";
+import { invoiceToWord, invoiceToExcel } from "../lib/docExport";
 import { Icon, Spinner, Empty } from "../components/ui";
 
 export default function InvoiceView() {
@@ -55,7 +56,9 @@ export default function InvoiceView() {
         {inv.status !== "cancelled" && <Link to={`/invoice/${inv._id}/edit`} className="btn-ghost"><Icon name="edit" size={16} /> {t("تعديل", "Edit")}</Link>}
         {inv.status === "draft" && <button className="btn-primary" onClick={() => approve({ id: inv._id, approvedBy: user?.name })}><Icon name="check" size={16} /> {t("اعتماد", "Approve")}</button>}
         <button className="btn-ghost" onClick={() => window.print()}><Icon name="print" size={16} /> {t("طباعة", "Print")}</button>
-        <button className="btn-secondary" onClick={savePdf}><Icon name="download" size={16} /> {t("حفظ PDF", "Save PDF")}</button>
+        <button className="btn-secondary" onClick={savePdf}><Icon name="download" size={16} /> PDF</button>
+        <button className="btn-secondary" onClick={() => invoiceToExcel(inv, s)}><Icon name="download" size={16} /> Excel</button>
+        <button className="btn-secondary" onClick={() => invoiceToWord(inv, s)}><Icon name="download" size={16} /> Word</button>
         <button className="btn-secondary" onClick={whatsapp}><Icon name="whatsapp" size={16} /> {t("واتساب", "WhatsApp")}</button>
         {inv.status !== "cancelled" && <button className="btn-ghost" style={{ color: "var(--warning)" }} onClick={() => confirm(t("إلغاء الفاتورة؟ (تبقى محفوظة كملغاة)", "Cancel invoice? (kept as cancelled)")) && cancel({ id: inv._id, by: user?.name })}><Icon name="x" size={16} /> {t("إلغاء", "Cancel")}</button>}
         <button className="btn-danger" onClick={() => confirm(t("حذف الفاتورة نهائيًا؟ لا يمكن التراجع.", "Delete invoice permanently? Cannot be undone.")) && removeInvoice({ id: inv._id, by: user?.name }).then(() => navigate("/invoices"))}><Icon name="trash" size={16} /> {t("حذف", "Delete")}</button>
