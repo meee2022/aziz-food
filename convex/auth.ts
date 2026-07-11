@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { hashSecret, verifySecret, isHashed } from "./hash";
 
 /**
  * مصادقة على مستوى الخادم بالجلسات (session tokens).
@@ -106,22 +107,31 @@ export const signIn = mutation({
     const now = Date.now();
     const mkToken = () => crypto.randomUUID() + "." + crypto.randomUUID();
 
-    // موظف
-    const u = await ctx.db.query("users").withIndex("by_pin", (q) => q.eq("pin", pin)).first();
+    if (!pin) return null;
+    const hashed = await hashSecret(pin);
+
+    // موظف: طابق المشفّر (سريع بالفهرس) ثم النص الصريح القديم (ويُرقَّى فورًا)
+    let u = await ctx.db.query("users").withIndex("by_pin", (q) => q.eq("pin", hashed)).first();
+    if (!u) {
+      const legacy = await ctx.db.query("users").withIndex("by_pin", (q) => q.eq("pin", pin)).first();
+      if (legacy && !isHashed(legacy.pin)) { await ctx.db.patch(legacy._id, { pin: hashed }); u = legacy; } // ترقية
+    }
     if (u && u.active) {
       const token = mkToken();
       await ctx.db.insert("sessions", { token, userId: u._id, name: u.name, role: u.role, createdAt: now });
       return { token, user: { id: u._id, name: u.name, role: u.role, customerId: null } };
     }
 
-    // عميل (بوابة الطلبات)
-    if (pin) {
-      const c = await ctx.db.query("customers").withIndex("by_loginPin", (q) => q.eq("loginPin", pin)).first();
-      if (c && c.active) {
-        const token = mkToken();
-        await ctx.db.insert("sessions", { token, customerId: c._id, name: c.name, role: "customer", createdAt: now });
-        return { token, user: { id: c._id, name: c.name, role: "customer", customerId: c._id } };
-      }
+    // عميل (بوابة الطلبات): نفس المنطق
+    let c = await ctx.db.query("customers").withIndex("by_loginPin", (q) => q.eq("loginPin", hashed)).first();
+    if (!c) {
+      const legacy = await ctx.db.query("customers").withIndex("by_loginPin", (q) => q.eq("loginPin", pin)).first();
+      if (legacy && legacy.loginPin && !isHashed(legacy.loginPin)) { await ctx.db.patch(legacy._id, { loginPin: hashed }); c = legacy; }
+    }
+    if (c && c.active) {
+      const token = mkToken();
+      await ctx.db.insert("sessions", { token, customerId: c._id, name: c.name, role: "customer", createdAt: now });
+      return { token, user: { id: c._id, name: c.name, role: "customer", customerId: c._id } };
     }
     return null;
   },
@@ -149,7 +159,11 @@ export const changeMyPassword = mutation({
     const user = await getSessionUser(ctx, token);
     if (!user) throw new Error("غير مصرّح");
     if (newPin.length < 4) throw new Error("كلمة السر 4 خانات على الأقل");
-    await ctx.db.patch(user.id, { pin: newPin });
+    const hashed = await hashSecret(newPin);
+    // تأكّد أن كلمة السر لا تخصّ حسابًا آخر
+    const clash = await ctx.db.query("users").withIndex("by_pin", (q) => q.eq("pin", hashed)).first();
+    if (clash && clash._id !== user.id) throw new Error("كلمة السر مستخدمة لحساب آخر، اختر غيرها");
+    await ctx.db.patch(user.id, { pin: hashed });
     return { ok: true };
   },
 });

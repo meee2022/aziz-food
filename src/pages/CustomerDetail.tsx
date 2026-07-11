@@ -120,13 +120,15 @@ function PortalAccess({ customerId, customer }: { customerId: any; customer: any
   const [copied, setCopied] = useState(false);
 
   const portalUrl = `${window.location.origin}/login`;
-  const enabled = !!current;
+  const enabled = !!current?.enabled;
+  // النص الصريح المتاح للإرسال: ما كتبه/ولّده المدير الآن، أو القديم غير المشفّر إن وُجد
+  const sharePw = draft || current?.plain || "";
 
   const save = async (pw: string | undefined) => {
     setBusy(true); setErr("");
     try {
       await setPassword({ id: customerId, password: pw });
-      setDraft("");
+      if (!pw) setDraft(""); // عند الإلغاء فقط؛ بعد التعيين نُبقي النص الصريح ليُرسَل للعميل
     } catch (e: any) {
       setErr(String(e?.message ?? e).replace(/^.*Error:\s*/s, "").split("\n")[0]);
     } finally { setBusy(false); }
@@ -136,7 +138,7 @@ function PortalAccess({ customerId, customer }: { customerId: any; customer: any
     [`*${customer.name}*`,
      t("تقدر تطلب من موقعنا مباشرة:", "You can order directly from our site:"),
      portalUrl, "",
-     `${t("كلمة السر", "Password")}: ${current}`].join("\n");
+     `${t("كلمة السر", "Password")}: ${sharePw}`].join("\n");
 
   const copy = async () => {
     await navigator.clipboard.writeText(message());
@@ -176,26 +178,32 @@ function PortalAccess({ customerId, customer }: { customerId: any; customer: any
           </div>
 
           <div>
-            <label className="label">{enabled ? t("كلمة السر الحالية", "Current password") : t("كلمة السر", "Password")}</label>
+            <label className="label">{enabled ? t("تعيين كلمة سر جديدة", "Set a new password") : t("كلمة السر", "Password")}</label>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <input className="field tabular" value={draft || current || ""} onChange={(e) => setDraft(e.target.value)}
-                placeholder={t("4 أحرف على الأقل", "at least 4 characters")}
+              <input className="field tabular" value={draft} onChange={(e) => setDraft(e.target.value)}
+                placeholder={enabled ? t("اكتب/ولّد كلمة جديدة", "type/generate a new one") : t("4 أحرف على الأقل", "at least 4 characters")}
                 style={{ direction: "ltr", textAlign: "start", flex: "1 1 180px", fontWeight: 700, letterSpacing: 1 }} />
               <button className="btn-ghost" onClick={() => setDraft(makePassword())}>{t("توليد", "Generate")}</button>
-              <button className="btn-primary" disabled={busy || !draft || draft === current} onClick={() => save(draft)}>
+              <button className="btn-primary" disabled={busy || draft.length < 4} onClick={() => save(draft)}>
                 <Icon name="check" size={15} /> {enabled ? t("تغيير", "Change") : t("تفعيل", "Enable")}
               </button>
             </div>
+            {enabled && !sharePw && (
+              <div className="text-muted" style={{ fontSize: 11.5, marginTop: 5 }}>
+                {t("كلمة السر مشفّرة ولا يمكن عرضها. لإرسالها للعميل ولّد كلمة جديدة.",
+                   "The password is encrypted and can't be shown. Generate a new one to send it.")}
+              </div>
+            )}
           </div>
 
           {err && <div className="pill badge-danger" style={{ padding: "8px 12px" }}><Icon name="alert" size={14} /> {err}</div>}
 
           {enabled && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <button className="btn-secondary" onClick={sendWhatsapp}>
+              <button className="btn-secondary" disabled={!sharePw} onClick={sendWhatsapp}>
                 <Icon name="whatsapp" size={15} /> {t("إرسال للعميل", "Send to customer")}
               </button>
-              <button className="btn-ghost" onClick={copy}>
+              <button className="btn-ghost" disabled={!sharePw} onClick={copy}>
                 <Icon name={copied ? "check" : "copy"} size={15} /> {copied ? t("تم النسخ", "Copied") : t("نسخ", "Copy")}
               </button>
               <div style={{ flex: 1 }} />

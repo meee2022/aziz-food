@@ -1,5 +1,6 @@
 import { adminQuery, adminMutation } from "./auth";
 import { v } from "convex/values";
+import { hashSecret } from "./hash";
 
 const role = v.union(
   v.literal("admin"),
@@ -20,9 +21,11 @@ export const list = adminQuery({
 export const create = adminMutation({
   args: { name: v.string(), pin: v.string(), role },
   handler: async (ctx: any, args: any) => {
-    const existing = await ctx.db.query("users").withIndex("by_pin", (q: any) => q.eq("pin", args.pin)).first();
+    if (args.pin.length < 4) throw new Error("كلمة السر 4 خانات على الأقل");
+    const hashed = await hashSecret(args.pin);
+    const existing = await ctx.db.query("users").withIndex("by_pin", (q: any) => q.eq("pin", hashed)).first();
     if (existing) throw new Error("كلمة السر مستخدمة بالفعل، اختر غيرها");
-    return await ctx.db.insert("users", { ...args, active: true, createdAt: Date.now() });
+    return await ctx.db.insert("users", { ...args, pin: hashed, active: true, createdAt: Date.now() });
   },
 });
 
@@ -39,6 +42,13 @@ export const update = adminMutation({
     const target = await ctx.db.get(id);
     // حساب المالك لا يعدّله إلا هو نفسه
     if (target?.owner && ctx.user.id !== id) throw new Error("لا يمكن تعديل حساب المالك");
+    if (rest.pin) {
+      if (rest.pin.length < 4) throw new Error("كلمة السر 4 خانات على الأقل");
+      const hashed = await hashSecret(rest.pin);
+      const clash = await ctx.db.query("users").withIndex("by_pin", (q: any) => q.eq("pin", hashed)).first();
+      if (clash && clash._id !== id) throw new Error("كلمة السر مستخدمة لحساب آخر، اختر غيرها");
+      rest.pin = hashed;
+    }
     await ctx.db.patch(id, rest);
   },
 });

@@ -1,5 +1,6 @@
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+import { hashSecret, verifySecret } from "./hash";
 
 /**
  * أوامر طوارئ للمالك (break-glass) — دوال internal لا تُتاح عبر واجهة التطبيق
@@ -14,16 +15,19 @@ export const ensureOwner = internalMutation({
   handler: async (ctx, { name, pin }) => {
     if (pin.length < 4) throw new Error("كلمة السر 4 خانات على الأقل");
     const users = await ctx.db.query("users").collect();
-    // تأكّد أن كلمة السر لا تخصّ حسابًا آخر (غير حساب المالك)
-    const clash = users.find((u) => u.pin === pin && !u.owner);
-    if (clash) throw new Error("كلمة السر مستخدمة لحساب آخر، اختر غيرها");
+    const hashed = await hashSecret(pin);
+    // تأكّد أن كلمة السر لا تخصّ حسابًا آخر (غير حساب المالك) — مشفّرة كانت أو قديمة
+    for (const u of users) {
+      if (u.owner) continue;
+      if (await verifySecret(pin, u.pin)) throw new Error("كلمة السر مستخدمة لحساب آخر، اختر غيرها");
+    }
 
     const owner = users.find((u) => u.owner);
     if (owner) {
-      await ctx.db.patch(owner._id, { name, pin, role: "admin", active: true, owner: true });
+      await ctx.db.patch(owner._id, { name, pin: hashed, role: "admin", active: true, owner: true });
       return { action: "updated", name };
     }
-    await ctx.db.insert("users", { name, pin, role: "admin", owner: true, active: true, createdAt: Date.now() });
+    await ctx.db.insert("users", { name, pin: hashed, role: "admin", owner: true, active: true, createdAt: Date.now() });
     return { action: "created", name };
   },
 });

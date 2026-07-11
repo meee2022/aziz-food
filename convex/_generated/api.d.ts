@@ -15,6 +15,7 @@ import type * as categories from "../categories.js";
 import type * as customers from "../customers.js";
 import type * as dashboard from "../dashboard.js";
 import type * as expenses from "../expenses.js";
+import type * as hash from "../hash.js";
 import type * as helpers from "../helpers.js";
 import type * as invoices from "../invoices.js";
 import type * as items from "../items.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   customers: typeof customers;
   dashboard: typeof dashboard;
   expenses: typeof expenses;
+  hash: typeof hash;
   helpers: typeof helpers;
   invoices: typeof invoices;
   items: typeof items;

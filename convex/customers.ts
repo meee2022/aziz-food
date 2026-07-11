@@ -1,6 +1,7 @@
 import { authQuery as query, authMutation as mutation, adminQuery, adminMutation } from "./auth";
 import { v } from "convex/values";
 import { effectivePrice, todayStr, round2 } from "./helpers";
+import { hashSecret, isHashed } from "./hash";
 
 /**
  * كلمة سر بوابة الطلبات لا تخرج أبدًا من هذه الدوال:
@@ -93,12 +94,17 @@ export const update = mutation({
   },
 });
 
-/** كلمة سر بوابة الطلبات — للمدير فقط. */
+/**
+ * حالة كلمة سر بوابة الطلبات — للمدير فقط.
+ * القيمة المشفّرة لا تُعاد أبدًا؛ النص الصريح القديم يُعاد مرة واحدة ليتمكّن المدير من إرساله
+ * قبل أن يُشفَّر (يتشفّر عند أول دخول للعميل أو عند تعيين كلمة جديدة).
+ */
 export const portalPassword = adminQuery({
   args: { id: v.id("customers") },
   handler: async (ctx, { id }) => {
     const c = await ctx.db.get(id);
-    return c?.loginPin ?? null;
+    const pw = c?.loginPin;
+    return { enabled: !!pw, plain: pw && !isHashed(pw) ? pw : null };
   },
 });
 
@@ -107,17 +113,19 @@ export const setPortalPassword = adminMutation({
   args: { id: v.id("customers"), password: v.optional(v.string()) },
   handler: async (ctx, { id, password }) => {
     const pw = password?.trim();
+    let stored: string | undefined = undefined;
 
     if (pw) {
       if (pw.length < 4) throw new Error("كلمة السر يجب أن تكون 4 أحرف على الأقل");
-      // كلمة السر هي المُعرِّف الوحيد عند الدخول، فلا يجوز تكرارها بين عميل وآخر
-      const clash = await ctx.db.query("customers").withIndex("by_loginPin", (q) => q.eq("loginPin", pw)).first();
+      stored = await hashSecret(pw);
+      // كلمة السر هي المُعرِّف الوحيد عند الدخول، فلا يجوز تكرارها بين عميل وآخر أو مع موظف
+      const clash = await ctx.db.query("customers").withIndex("by_loginPin", (q) => q.eq("loginPin", stored!)).first();
       if (clash && clash._id !== id) throw new Error("كلمة السر مستخدمة لعميل آخر — اختر غيرها");
-      const staff = await ctx.db.query("users").withIndex("by_pin", (q) => q.eq("pin", pw)).first();
+      const staff = await ctx.db.query("users").withIndex("by_pin", (q) => q.eq("pin", stored!)).first();
       if (staff) throw new Error("كلمة السر مستخدمة لحساب موظف — اختر غيرها");
     }
 
-    await ctx.db.patch(id, { loginPin: pw || undefined });
+    await ctx.db.patch(id, { loginPin: stored });
 
     // أنهِ جلسات العميل القديمة: تغيير كلمة السر أو إلغاؤها يجب أن يُخرجه فورًا
     const sessions = await ctx.db.query("sessions").withIndex("by_customer", (q) => q.eq("customerId", id)).collect();
