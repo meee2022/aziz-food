@@ -5,7 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
-import { money, num, today } from "../lib/format";
+import { money, num, today, PRICE_SOURCE } from "../lib/format";
 import { PageHeader, Icon, Spinner, Empty, NumField } from "../components/ui";
 import { useUnits } from "../lib/units";
 
@@ -123,6 +123,9 @@ export default function InvoiceCreate() {
       return { itemId: l.itemId, name: l.name, unit: l.unit, qty: l.qty, unitPrice: cur ? cur.sell : l.unitPrice, cost: cur ? cur.cost : l.cost };
     }));
   };
+
+  // لعرض مصدر سعر كل سطر (خاص بالعميل / قائمة / سعر اليوم)
+  const priceByItem = useMemo(() => new Map((prices ?? []).map((p: any) => [p.itemId, p])), [prices]);
 
   // الإجماليات
   const subtotal = lines.reduce((s, l) => s + l.qty * l.unitPrice, 0);
@@ -313,6 +316,9 @@ export default function InvoiceCreate() {
               <tbody>
                 {lines.map((l, i) => {
                   const below = l.unitPrice < l.cost;
+                  const cp: any = l.itemId ? priceByItem.get(l.itemId) : null;
+                  const src = cp ? (PRICE_SOURCE[cp.source] ?? PRICE_SOURCE.default) : null;
+                  const edited = cp && Math.abs(l.unitPrice - cp.sell) > 1e-6; // عدّل المستخدم السعر يدويًا
                   return (
                     <tr key={i} style={below ? { background: "var(--danger-bg)" } : undefined}>
                       <td>
@@ -323,6 +329,9 @@ export default function InvoiceCreate() {
                             style={{ fontSize: 11, fontWeight: 700, padding: "2px 6px", borderRadius: 999, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--ink)", cursor: "pointer" }}>
                             {[...new Set([l.unit, ...UNITS])].map((u) => <option key={u} value={u}>{u}</option>)}
                           </select>
+                          {edited
+                            ? <span className="pill badge-warning" style={{ fontSize: 10 }} title={t("عدّلت السعر يدويًا لهذا السطر", "Price manually edited")}>{t("معدّل يدويًا", "Edited")}</span>
+                            : src && <span className={"pill " + src[2]} style={{ fontSize: 10 }} title={t("مصدر السعر", "Price source")}>{t(src[0], src[1])}</span>}
                         </div>
                         {below && <div className="text-danger" style={{ fontSize: 11, color: "var(--danger)" }}><Icon name="alert" size={11} /> {t("أقل من التكلفة", "Below cost")} ({money(l.cost, false)})</div>}
                         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>

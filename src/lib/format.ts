@@ -18,6 +18,14 @@ export function num(n: number | undefined | null, dp = 2): string {
   return v.toLocaleString("en-US", { maximumFractionDigits: dp });
 }
 
+/** مصدر سعر البيع كما تعيده effectivePrice: [عربي، إنجليزي، صنف الشارة]. */
+export const PRICE_SOURCE: Record<string, [string, string, string]> = {
+  customer:   ["خاص بالعميل", "Customer", "badge-champion"],
+  priceList:  ["قائمة أسعار", "Price list", "badge-info"],
+  listMargin: ["هامش القائمة", "List margin", "badge-info"],
+  default:    ["سعر اليوم", "Today", "badge-muted"],
+};
+
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
