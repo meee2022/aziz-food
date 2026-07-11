@@ -6,6 +6,7 @@ import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { PageHeader, Icon, Modal, Spinner, normalizeNum } from "../components/ui";
 import { BASE_UNITS, parseCustomUnits } from "../lib/units";
+import { useConvex } from "convex/react";
 
 const ROLES: [string, string, string][] = [
   ["admin", "مدير", "Admin"], ["sales", "مبيعات", "Sales"],
@@ -33,7 +34,50 @@ export default function Settings() {
   const seed = useMutation(api.seed.run);
 
   const { user, token } = useAuth();
+  const convex = useConvex();
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupMsg, setBackupMsg] = useState("");
   const testWhatsApp = useAction(api.notify.testWhatsApp);
+
+  const stamp = () => new Date().toISOString().slice(0, 16).replace("T", "_").replace(/:/g, "");
+
+  const fetchBackup = async () => {
+    return await convex.query(api.backup.exportAll, { token: token ?? "" } as any);
+  };
+
+  const downloadJson = async () => {
+    setBackupBusy(true); setBackupMsg("");
+    try {
+      const b = await fetchBackup();
+      const blob = new Blob([JSON.stringify(b, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `khodar-backup-${stamp()}.json`; a.click();
+      URL.revokeObjectURL(url);
+      setBackupMsg(t(`تم تنزيل نسخة كاملة (${b.counts.invoices} فاتورة، ${b.counts.customers} عميل)`, `Backup downloaded (${b.counts.invoices} invoices, ${b.counts.customers} customers)`));
+    } catch (e: any) { setBackupMsg(cleanErr(e) || t("تعذّر التنزيل", "Failed")); }
+    finally { setBackupBusy(false); }
+  };
+
+  const downloadExcel = async () => {
+    setBackupBusy(true); setBackupMsg("");
+    try {
+      const b: any = await fetchBackup();
+      const XLSX = await import("xlsx");
+      const wb = XLSX.utils.book_new();
+      const add = (name: string, rows: any[]) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), name);
+      add("العملاء", b.data.customers.map((c: any) => ({ الاسم: c.name, الهاتف: c.phone ?? "", المنطقة: c.area ?? "", الرصيد: c.balance ?? 0 })));
+      add("الفواتير", b.data.invoices.map((i: any) => ({ رقم: i.number, التاريخ: i.date, العميل: i.customerName, الفرع: i.branch ?? "", الحالة: i.status, الصافي: i.total, الربح: i.expectedProfit, المدفوع: i.paidAmount })));
+      add("المدفوعات", b.data.payments.map((p: any) => ({ التاريخ: p.date, العميل: p.customerName, المبلغ: p.amount, الطريقة: p.method })));
+      add("المرتجعات", b.data.returns.map((r: any) => ({ التاريخ: r.date, العميل: r.customerName, فاتورة: r.invoiceNumber ?? "", القيمة: r.total })));
+      add("المصروفات", b.data.expenses.map((e: any) => ({ التاريخ: e.date, البند: e.category, المبلغ: e.amount, ملاحظة: e.note ?? "" })));
+      add("الأصناف", b.data.items.map((i: any) => ({ الاسم: i.nameEn, بالعربي: i.nameAr ?? "", الوحدة: i.unit, التكلفة: i.defaultCost, البيع: i.defaultSell })));
+      XLSX.writeFile(wb, `khodar-backup-${stamp()}.xlsx`);
+      setBackupMsg(t("تم تنزيل ملف Excel", "Excel downloaded"));
+    } catch (e: any) { setBackupMsg(cleanErr(e) || t("تعذّر التنزيل", "Failed")); }
+    finally { setBackupBusy(false); }
+  };
+
   const [wa, setWa] = useState<Record<string, string> | null>(null);
   const [waMsg, setWaMsg] = useState("");
   const [waBusy, setWaBusy] = useState(false);
@@ -222,6 +266,26 @@ export default function Settings() {
           {cats?.map((c) => <span key={c._id} className="pill badge-champion">{lang === "ar" ? c.nameAr : c.nameEn}</span>)}
         </div>
       </div>
+
+      {/* النسخ الاحتياطي والتصدير — للمدير فقط */}
+      {user?.role === "admin" && (
+        <div className="card" style={{ marginBottom: 18 }}>
+          <div className="section-title" style={{ marginBottom: 6 }}>{t("💾 نسخة احتياطية وتصدير", "💾 Backup & export")}</div>
+          <p className="text-muted" style={{ fontSize: 13, marginTop: 0 }}>
+            {t("نزّل نسخة كاملة من بياناتك واحتفظ بيها عندك بشكل دوري. ملف JSON للاسترجاع الكامل، وملف Excel للاطّلاع والطباعة.",
+               "Download a full copy of your data regularly. JSON for a complete backup, Excel for reading and printing.")}
+          </p>
+          {backupMsg && <div className="pill badge-success" style={{ marginBottom: 10 }}><Icon name="check" size={14} /> {backupMsg}</div>}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="btn-primary" disabled={backupBusy} onClick={downloadJson}>
+              <Icon name="download" size={16} /> {backupBusy ? t("جارٍ التحضير…", "Preparing…") : t("نسخة كاملة (JSON)", "Full backup (JSON)")}
+            </button>
+            <button className="btn-secondary" disabled={backupBusy} onClick={downloadExcel}>
+              <Icon name="download" size={16} /> {t("ملف Excel", "Excel file")}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* التهيئة الأولية */}
       <div className="card" style={{ background: "color-mix(in srgb, var(--accent) 8%, transparent)" }}>
