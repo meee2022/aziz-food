@@ -24,7 +24,7 @@ function header(s: Company) {
   };
 }
 
-const fileBase = (s: Company, n: string) => `${(s.companyNameEn || "MADAME-TRADING").replace(/\s+/g, "-")}-${n}`;
+const fileBase = (s: Company, n: string) => `${(s.companyNameEn || "MADAME-TRADING").trim().replace(/\s+/g, "-")}-${n}`;
 
 /* ─────────────── الفاتورة → Word (مستند HTML يفتحه Word منسّقًا) ─────────────── */
 export function invoiceToWord(inv: any, s: Company) {
@@ -145,4 +145,95 @@ export async function invoiceToExcel(inv: any, s: Company) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Invoice");
   XLSX.writeFile(wb, `${fileBase(s, inv.number)}.xlsx`);
+}
+
+/* ─────────────── كشف الحساب ─────────────── */
+
+const ROW_KIND: Record<string, string> = { invoice: "فاتورة", payment: "دفعة", return: "مرتجع" };
+const stBase = (s: Company, name: string) => `${(s.companyNameEn || "STATEMENT").trim().replace(/\s+/g, "-")}-${name.trim().replace(/\s+/g, "-")}`;
+
+/** كشف الحساب → Word. */
+export function statementToWord(st: any, customer: any, s: Company, dateStr: string) {
+  const h = header(s);
+  const rows = st.ledger.map((r: any) =>
+    `<tr>
+      <td class="c">${esc(r.date)}</td>
+      <td class="s">${ROW_KIND[r.kind] ?? r.kind}${r.ref && r.ref !== "—" ? " · " + esc(r.ref) : ""}</td>
+      <td class="e">${r.debit ? num(r.debit) : "—"}</td>
+      <td class="e">${r.credit ? num(r.credit) : "—"}</td>
+      <td class="e"><b>${num(r.balance)}</b></td>
+    </tr>`).join("");
+
+  const html = `<!DOCTYPE html><html dir="rtl" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
+<head><meta charset="utf-8"><title>${esc(stBase(s, customer.name))}</title>
+<style>
+  body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#222;font-size:11pt}
+  .en{color:#0a7c3f;font-weight:bold;font-size:16pt;margin:0}
+  .info{font-size:8.5pt;color:#333;line-height:1.4}
+  h1{color:#5C1523;text-align:center;font-size:16pt;margin:10px 0}
+  table{border-collapse:collapse;width:100%}
+  .led td,.led th{border:1px solid #d9cfc0;padding:5px 8px;font-size:9.5pt}
+  .led th{background:#5C1523;color:#C9A96E}
+  .c{text-align:center}.e{text-align:right}.s{text-align:right}
+  .sum td{border:1px solid #d9cfc0;padding:5px 10px;font-size:10pt}
+  .sk{font-weight:bold;color:#666}
+</style></head>
+<body>
+  <table style="border-bottom:3px solid #5C1523"><tr>
+    <td style="text-align:left;width:50%"><p class="en" style="direction:ltr">${esc(h.nameEn)}</p>
+      <div class="info" style="direction:ltr">CR. ${esc(h.cr)}, Mobile: ${esc(h.phone)}<br>${esc(h.email)}</div></td>
+    <td style="text-align:right;width:50%"><p class="en">${esc(h.nameAr)}</p>
+      <div class="info">س.ت: ${esc(h.cr)} ، جوال: ${esc(h.phone)}</div></td>
+  </tr></table>
+
+  <h1>كشف حساب — Statement of Account</h1>
+
+  <table class="sum" style="margin-bottom:10px"><tr>
+    <td class="sk">العميل / Customer</td><td>${esc(customer.name)}${customer.phone ? " — " + esc(customer.phone) : ""}</td>
+    <td class="sk">التاريخ / Date</td><td>${esc(dateStr)}</td>
+  </tr><tr>
+    <td class="sk">إجمالي الفواتير</td><td>${num(st.totalInvoiced)}</td>
+    <td class="sk">المدفوع</td><td>${num(st.totalPaid)}</td>
+  </tr><tr>
+    <td class="sk">المرتجعات</td><td>${num(st.totalReturned ?? 0)}</td>
+    <td class="sk">الرصيد المتبقي</td><td><b>${num(st.balance)}</b></td>
+  </tr></table>
+
+  <table class="led">
+    <tr><th>التاريخ</th><th>البيان</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr>
+    ${rows}
+  </table>
+</body></html>`;
+
+  download("﻿" + html, `${stBase(s, customer.name)}.doc`, "application/msword");
+}
+
+/** كشف الحساب → Excel. */
+export async function statementToExcel(st: any, customer: any, s: Company, dateStr: string) {
+  const XLSX = await import("xlsx");
+  const h = header(s);
+  const M = "";
+  const aoa: any[][] = [
+    [h.nameAr, M, M, M, h.nameEn],
+    [`س.ت ${h.cr} — جوال ${h.phone}`, M, M, M, h.email],
+    [],
+    ["كشف حساب / Statement", M, M, M, M],
+    ["العميل", customer.name, M, "التاريخ", dateStr],
+    ["إجمالي الفواتير", st.totalInvoiced, M, "المدفوع", st.totalPaid],
+    ["المرتجعات", st.totalReturned ?? 0, M, "الرصيد المتبقي", st.balance],
+    [],
+    ["التاريخ", "البيان", "مدين", "دائن", "الرصيد"],
+    ...st.ledger.map((r: any) => [
+      r.date,
+      (ROW_KIND[r.kind] ?? r.kind) + (r.ref && r.ref !== "—" ? " · " + r.ref : ""),
+      r.debit || "", r.credit || "", r.balance,
+    ]),
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{ wch: 14 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 14 }];
+  ws["!merges"] = [{ s: { r: 3, c: 0 }, e: { r: 3, c: 4 } }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Statement");
+  XLSX.writeFile(wb, `${stBase(s, customer.name)}.xlsx`);
 }

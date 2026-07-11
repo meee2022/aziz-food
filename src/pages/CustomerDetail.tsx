@@ -5,6 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, num, formatDate, today, waPhone } from "../lib/format";
+import { statementToWord, statementToExcel } from "../lib/docExport";
 import { PageHeader, Icon, Modal, Spinner, Empty, NumField, parseNum, normalizeNum } from "../components/ui";
 import { CUSTOMER_TYPES } from "./Customers";
 import { useUnits, parseCustomUnits, BASE_UNITS } from "../lib/units";
@@ -47,7 +48,11 @@ export default function CustomerDetail() {
         <PageHeader title={c.name} subtitle={`${typeLabel(c.type)} ${c.area ? "· " + c.area : ""}`}
           actions={<>
             <Link to="/customers" className="btn-ghost"><Icon name="back" size={16} /> {t("رجوع", "Back")}</Link>
-            {tab === "statement" && <button className="btn-ghost" onClick={() => window.print()}><Icon name="print" size={16} /> {t("طباعة كشف", "Print")}</button>}
+            {tab === "statement" && <>
+              <button className="btn-ghost" onClick={() => window.print()}><Icon name="print" size={16} /> {t("طباعة", "Print")}</button>
+              <button className="btn-ghost" onClick={() => statementToExcel(st, c, settings ?? {}, formatDate(today(), lang))}><Icon name="download" size={16} /> Excel</button>
+              <button className="btn-ghost" onClick={() => statementToWord(st, c, settings ?? {}, formatDate(today(), lang))}><Icon name="download" size={16} /> Word</button>
+            </>}
             <button className="btn-secondary" onClick={sendStatementWhatsapp}><Icon name="whatsapp" size={16} /> {t("إرسال كشف", "Send")}</button>
             <button className="btn-primary" onClick={() => setPayOpen(true)}><Icon name="money" size={16} /> {t("تسجيل دفعة", "Add Payment")}</button>
           </>} />
