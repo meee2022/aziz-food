@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "../lib/authedConvex";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
@@ -20,6 +20,23 @@ export default function InvoiceView() {
   const removeInvoice = useMutation(api.invoices.remove);
   const sheetRef = useRef<HTMLDivElement>(null);
   const [sharing, setSharing] = useState(false);
+  const [printZoom, setPrintZoom] = useState(1);
+
+  // تصغير الفاتورة تلقائيًا لتدخل في صفحة A4 واحدة عند الطباعة إن كثُرت الأصناف.
+  // نقيس نسخةً بمقاسات الطباعة (عرض A4 ناقص الهوامش) ونحسب معامل التصغير.
+  useEffect(() => {
+    const el = sheetRef.current;
+    if (!el || !inv) return;
+    const A4_W = 718, A4_H = 1047; // 190mm × 277mm بعد هوامش 10mm عند 96dpi
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll(".no-print").forEach((n) => n.remove());
+    Object.assign(clone.style, { position: "fixed", left: "-99999px", top: "0", width: A4_W + "px", maxWidth: A4_W + "px", padding: "0", boxShadow: "none", border: "none", fontSize: "12px", zoom: "1" as any });
+    document.body.appendChild(clone);
+    clone.querySelectorAll(".inv-table td").forEach((td) => { (td as HTMLElement).style.height = "22px"; (td as HTMLElement).style.padding = "3px 8px"; });
+    const h = clone.getBoundingClientRect().height;
+    document.body.removeChild(clone);
+    setPrintZoom(h > A4_H ? Math.max(0.5, (A4_H - 6) / h) : 1);
+  }, [inv]);
 
   if (inv === undefined || settings === undefined) return <Spinner />;
   if (!inv) return <Empty text={t("الفاتورة غير موجودة", "Not found")} />;
@@ -199,7 +216,7 @@ export default function InvoiceView() {
         /* الفواصل على كل خلية — الحدّ الخارجي يخفيه overflow:hidden فيصحّ مع أي عدد أعمدة */
         .inv-meta > div { border-bottom: 1px solid var(--border); border-inline-end: 1px solid var(--border); }
         @media print {
-          .invoice-sheet { box-shadow: none !important; border: none !important; max-width: 100% !important; padding: 0 !important; page-break-inside: avoid; }
+          .invoice-sheet { box-shadow: none !important; border: none !important; max-width: 100% !important; padding: 0 !important; page-break-inside: avoid; zoom: ${printZoom}; }
           .invoice-sheet .inv-table td { height: 22px !important; padding: 3px 8px !important; }
           .invoice-sign { margin-top: 14px !important; }
           .invoice-sheet { font-size: 12px; }
