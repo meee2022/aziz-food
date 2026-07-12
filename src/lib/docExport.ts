@@ -11,6 +11,56 @@ function download(content: BlobPart, filename: string, mime: string) {
 
 const esc = (v: any) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/* ─────────────── PDF حقيقي + مشاركة (واتساب على الموبايل) ─────────────── */
+
+/** يصوّر عنصر ورقة الفاتورة إلى ملف PDF (A4) — يتعامل مع العربي لأنه يلتقط ما يرسمه المتصفح. */
+export async function elementToPdfBlob(el: HTMLElement): Promise<Blob> {
+  const html2canvas = (await import("html2canvas-pro")).default;
+  const { jsPDF } = await import("jspdf");
+  const canvas = await html2canvas(el, {
+    scale: 2, backgroundColor: "#ffffff", useCORS: true,
+    ignoreElements: (e) => (e as HTMLElement).classList?.contains("no-print"), // لا تلتقط كتلة الربح الداخلية
+  });
+  const img = canvas.toDataURL("image/jpeg", 0.92);
+  const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+  const margin = 8;
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const availW = pageW - margin * 2;
+  const availH = pageH - margin * 2;
+  const imgH = (canvas.height * availW) / canvas.width;
+
+  // صفحة واحدة إن وسِعت، وإلا نقسّم الصورة على عدة صفحات
+  pdf.addImage(img, "JPEG", margin, margin, availW, imgH);
+  let heightLeft = imgH - availH;
+  while (heightLeft > 0.5) {
+    pdf.addPage();
+    pdf.addImage(img, "JPEG", margin, margin - (imgH - heightLeft), availW, imgH);
+    heightLeft -= availH;
+  }
+  return pdf.output("blob");
+}
+
+/**
+ * يشارك الـ PDF عبر قائمة مشاركة النظام (واتساب على الموبايل) إن كانت مدعومة،
+ * وإلا ينزّل الملف (على الكمبيوتر غالبًا). يُرجع ما حدث فعلًا.
+ */
+export async function sharePdf(blob: Blob, fileName: string, opts: { title?: string; text?: string } = {}): Promise<"shared" | "cancelled" | "downloaded"> {
+  const file = new File([blob], fileName, { type: "application/pdf" });
+  const nav: any = navigator;
+  if (nav.canShare && nav.canShare({ files: [file] })) {
+    try {
+      await nav.share({ files: [file], title: opts.title, text: opts.text });
+      return "shared";
+    } catch (e: any) {
+      if (e?.name === "AbortError") return "cancelled"; // المستخدم أغلق القائمة
+      // غير مدعوم فعليًا → ننزّل
+    }
+  }
+  download(blob, fileName, "application/pdf");
+  return "downloaded";
+}
+
 interface Company { companyName?: string; companyNameEn?: string; cr?: string; phone?: string; email?: string; addressAr?: string; addressEn?: string; }
 
 function header(s: Company) {

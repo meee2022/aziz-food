@@ -1,10 +1,11 @@
+import { useRef, useState } from "react";
 import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "../lib/authedConvex";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, num, formatDate, formatDateTime, amountInWordsEn, waPhone } from "../lib/format";
-import { invoiceToWord, invoiceToExcel } from "../lib/docExport";
+import { invoiceToWord, invoiceToExcel, elementToPdfBlob, sharePdf } from "../lib/docExport";
 import { Icon, Spinner, Empty } from "../components/ui";
 
 export default function InvoiceView() {
@@ -17,6 +18,8 @@ export default function InvoiceView() {
   const approve = useMutation(api.invoices.approve);
   const cancel = useMutation(api.invoices.cancel);
   const removeInvoice = useMutation(api.invoices.remove);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const [sharing, setSharing] = useState(false);
 
   if (inv === undefined || settings === undefined) return <Spinner />;
   if (!inv) return <Empty text={t("الفاتورة غير موجودة", "Not found")} />;
@@ -25,6 +28,21 @@ export default function InvoiceView() {
   const nameEn = s.companyNameEn || "MADAME TRADING";
   const nameAr = s.companyName || "مدم مي للتجارة";
   const c = inv.customer;
+
+  // توليد الفاتورة PDF حقيقيًا ومشاركتها (واتساب على الموبايل) أو تنزيلها (كمبيوتر)
+  const sharePdfInvoice = async () => {
+    if (!sheetRef.current) return;
+    setSharing(true);
+    try {
+      const blob = await elementToPdfBlob(sheetRef.current);
+      const file = `${nameEn.replace(/\s+/g, "-")}-${inv.number}.pdf`;
+      const caption = `${nameAr}\n${t("فاتورة", "Invoice")} ${inv.number} — ${inv.customerName}\n${t("الإجمالي", "Total")}: ${money(inv.total)}`;
+      const res = await sharePdf(blob, file, { title: `${t("فاتورة", "Invoice")} ${inv.number}`, text: caption });
+      if (res === "downloaded") alert(t("جهازك لا يدعم المشاركة المباشرة — نُزّل ملف الـ PDF، أرفقه في واتساب يدويًا.", "Your device can't share directly — the PDF was downloaded; attach it in WhatsApp manually."));
+    } catch (e) {
+      alert(t("تعذّر توليد ملف الـ PDF", "Could not generate the PDF"));
+    } finally { setSharing(false); }
+  };
 
   // حفظ الفاتورة كـ PDF عبر طباعة المتصفح، مع تسمية الملف برقم الفاتورة
   const savePdf = () => {
@@ -59,13 +77,16 @@ export default function InvoiceView() {
         <button className="btn-secondary" onClick={savePdf}><Icon name="download" size={16} /> PDF</button>
         <button className="btn-secondary" onClick={() => invoiceToExcel(inv, s)}><Icon name="download" size={16} /> Excel</button>
         <button className="btn-secondary" onClick={() => invoiceToWord(inv, s)}><Icon name="download" size={16} /> Word</button>
-        <button className="btn-secondary" onClick={whatsapp}><Icon name="whatsapp" size={16} /> {t("واتساب", "WhatsApp")}</button>
+        <button className="btn-primary" disabled={sharing} onClick={sharePdfInvoice}>
+          <Icon name="whatsapp" size={16} /> {sharing ? t("جارٍ التحضير…", "Preparing…") : t("مشاركة PDF", "Share PDF")}
+        </button>
+        <button className="btn-ghost" onClick={whatsapp}><Icon name="whatsapp" size={16} /> {t("واتساب نص", "Text")}</button>
         {inv.status !== "cancelled" && <button className="btn-ghost" style={{ color: "var(--warning)" }} onClick={() => confirm(t("إلغاء الفاتورة؟ (تبقى محفوظة كملغاة)", "Cancel invoice? (kept as cancelled)")) && cancel({ id: inv._id, by: user?.name })}><Icon name="x" size={16} /> {t("إلغاء", "Cancel")}</button>}
         <button className="btn-danger" onClick={() => confirm(t("حذف الفاتورة نهائيًا؟ لا يمكن التراجع.", "Delete invoice permanently? Cannot be undone.")) && removeInvoice({ id: inv._id, by: user?.name }).then(() => navigate("/invoices"))}><Icon name="trash" size={16} /> {t("حذف", "Delete")}</button>
       </div>
 
       {/* ورقة الفاتورة (مطابقة لقالب MADAME TRADING) */}
-      <div className="invoice-sheet" style={{ maxWidth: 820, margin: "0 auto", background: "#fff", borderRadius: 12, padding: "18px 22px", boxShadow: "0 10px 30px -12px rgba(0,0,0,.15)", border: "1px solid var(--border)" }}>
+      <div ref={sheetRef} className="invoice-sheet" style={{ maxWidth: 820, margin: "0 auto", background: "#fff", borderRadius: 12, padding: "18px 22px", boxShadow: "0 10px 30px -12px rgba(0,0,0,.15)", border: "1px solid var(--border)" }}>
         {/* الترويسة ثنائية اللغة */}
         <div style={{ display: "flex", justifyContent: "space-between", gap: 16, borderBottom: "2px solid var(--primary)", paddingBottom: 8 }}>
           <div style={{ direction: "ltr", textAlign: "left" }}>
