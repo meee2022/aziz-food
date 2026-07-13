@@ -13,7 +13,6 @@
     "seed": "convex run seed:run"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.111.0",
     "convex": "^1.42.1",
     "html2canvas-pro": "^2.2.3",
     "jspdf": "^4.2.1",

@@ -1,12 +1,11 @@
-"use node";
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
-import Anthropic from "@anthropic-ai/sdk";
 
 /**
  * تحويل طلب العميل (نص أو صورة) إلى أصناف وكميات مطابقة لكتالوج الأصناف.
- * يستخدم Claude (claude-opus-4-8). المفتاح السري في متغيّر البيئة ANTHROPIC_API_KEY على Convex.
+ * يستخدم Claude (claude-opus-4-8) عبر نداء مباشر للـ API — المفتاح السري في
+ * متغيّر البيئة ANTHROPIC_API_KEY على Convex.
  */
 export const parseOrder = action({
   args: {
@@ -20,7 +19,8 @@ export const parseOrder = action({
     if (!user) throw new Error("غير مصرّح — سجّل الدخول");
     if (!args.text?.trim() && !args.imageBase64) throw new Error("اكتب الطلب أو أرفق صورة");
 
-    const key = (globalThis as any).process?.env?.ANTHROPIC_API_KEY;
+    // نظّف المفتاح من أي حروف غير مطبوعة/غير ASCII قد تكون التصقت عند اللصق (مفاتيح Anthropic ASCII فقط)
+    const key = (globalThis as any).process?.env?.ANTHROPIC_API_KEY?.replace(/[^\x21-\x7E]/g, "");
     if (!key) throw new Error("لم يتم ضبط مفتاح الذكاء الاصطناعي (ANTHROPIC_API_KEY) على الخادم بعد.");
 
     // كتالوج الأصناف النشطة (المُعرّف + الاسمان + الوحدة)
@@ -29,15 +29,13 @@ export const parseOrder = action({
       .map((i: any) => `${i.itemId}\t${i.name}\t${i.nameAr ?? ""}\t${i.unit}`)
       .join("\n");
 
-    const client = new Anthropic({ apiKey: key });
-
     const system =
       "أنت تحوّل طلب عميل لتاجر جملة خضار وفواكه إلى بنود منظّمة. المدخل نص عربي/إنجليزي أو صورة لطلب مكتوب بخط اليد أو مطبوع. " +
       "طابِق كل صنف مطلوب بأقرب صنف في الكتالوج المرفق (CATALOG: أعمدة مفصولة بـ tab = المعرّف، الاسم الإنجليزي، الاسم العربي، الوحدة). " +
       "أعد itemId من الكتالوج بالضبط؛ إن لم تجد تطابقًا جيدًا اجعله سلسلة فارغة \"\". " +
       "qty رقم: حوّل مثل '2 كرتونة' إلى 2، و'نص كيلو' إلى 0.5، و'500 جرام' إلى 0.5 لو الوحدة كيلو. " +
       "unit: استخدم وحدة الصنف من الكتالوج إلا إذا حدّد العميل وحدة مختلفة صراحةً. " +
-      "أدرِج فقط الأصناف المطلوبة فعلًا. أعد النتيجة JSON فقط بالشكل: " +
+      "أدرِج فقط الأصناف المطلوبة فعلًا. أعد النتيجة JSON فقط بلا أي شرح بالشكل: " +
       '{"lines":[{"itemId":"","requested":"النص الأصلي","qty":0,"unit":""}]}';
 
     const content: any[] = [];
@@ -49,18 +47,30 @@ export const parseOrder = action({
     }
     content.push({ type: "text", text: `${args.text ?? ""}\n\nCATALOG:\n${catalog}` });
 
-    const resp: any = await (client.messages.create as any)({
-      model: "claude-opus-4-8",
-      max_tokens: 4096,
-      thinking: { type: "adaptive" },
-      output_config: { format: { type: "json_schema", schema: SCHEMA } },
-      system,
-      messages: [{ role: "user", content }],
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-opus-4-8",
+        max_tokens: 4096,
+        thinking: { type: "adaptive" },
+        output_config: { format: { type: "json_schema", schema: SCHEMA } },
+        system,
+        messages: [{ role: "user", content }],
+      }),
     });
 
-    if (resp.stop_reason === "refusal") throw new Error("تعذّر تحليل الطلب (رُفض من نموذج الذكاء الاصطناعي).");
+    const data: any = await res.json();
+    if (!res.ok || data?.type === "error") {
+      throw new Error("الذكاء الاصطناعي: " + (data?.error?.message || `خطأ ${res.status}`));
+    }
+    if (data.stop_reason === "refusal") throw new Error("تعذّر تحليل الطلب (رُفض من نموذج الذكاء الاصطناعي).");
 
-    const textOut = (resp.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
+    const textOut = (data.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
     const parsed = extractJson(textOut);
     const lines = Array.isArray(parsed?.lines) ? parsed.lines : [];
 
