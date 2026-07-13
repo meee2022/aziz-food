@@ -6,6 +6,8 @@ import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, num, today, PRICE_SOURCE } from "../lib/format";
+import { parseExcelOrder, type CatalogItem } from "../lib/importOrder";
+import { useAction } from "convex/react";
 import { PageHeader, Icon, Spinner, Empty, NumField } from "../components/ui";
 import { useUnits } from "../lib/units";
 
@@ -111,6 +113,73 @@ export default function InvoiceCreate() {
 
   const setLine = (i: number, patch: Partial<Line>) => setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
   const removeLine = (i: number) => setLines((ls) => ls.filter((_, idx) => idx !== i));
+
+  // ── استيراد طلب: نص/صورة (ذكاء اصطناعي) أو ملف إكسيل (محليًا) ──
+  const parseOrderAI = useAction(api.ai.parseOrder);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
+  const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const catalog: CatalogItem[] = useMemo(
+    () => (prices ?? []).map((p: any) => ({ itemId: p.itemId, name: p.name, nameAr: p.nameAr, unit: p.unit })),
+    [prices],
+  );
+
+  /** يضيف الأصناف المطابقة للفاتورة بأسعار العميل، ويعرض غير المطابق. */
+  const applyImport = (matched: { itemId: string; qty: number; unit?: string }[], unmatched: string[]) => {
+    const priceMap = new Map((prices ?? []).map((p: any) => [p.itemId, p]));
+    const toAdd = matched.filter((m) => m.qty > 0 && priceMap.has(m.itemId));
+    setLines((ls) => {
+      const copy = [...ls];
+      for (const m of toAdd) {
+        const p: any = priceMap.get(m.itemId);
+        const idx = copy.findIndex((l) => l.itemId === m.itemId);
+        if (idx >= 0) copy[idx] = { ...copy[idx], qty: Math.round((copy[idx].qty + m.qty) * 100) / 100 };
+        else copy.push({ itemId: p.itemId, name: p.name, unit: m.unit || p.unit, qty: m.qty, unitPrice: p.sell, cost: p.cost });
+      }
+      return copy;
+    });
+    const parts = [t(`تمت إضافة ${toAdd.length} صنف`, `Added ${toAdd.length} item(s)`)];
+    if (unmatched.length) parts.push(t(`لم يُطابَق: ${unmatched.join("، ")}`, `No match: ${unmatched.join(", ")}`));
+    setImportMsg({ ok: toAdd.length > 0, text: parts.join(" — ") });
+  };
+
+  const runAiImport = async () => {
+    if (!importText.trim()) { setImportMsg({ ok: false, text: t("اكتب الطلب أولًا", "Type the order first") }); return; }
+    setImportBusy(true); setImportMsg(null);
+    try {
+      const res: any = await parseOrderAI({ token: token ?? "", text: importText });
+      applyImport(res.matched, res.unmatched);
+      setImportText("");
+    } catch (e: any) {
+      setImportMsg({ ok: false, text: String(e?.message ?? e).replace(/^.*Error:\s*/s, "").split("\n")[0] });
+    } finally { setImportBusy(false); }
+  };
+
+  const runImageImport = async (file: File) => {
+    setImportBusy(true); setImportMsg(null);
+    try {
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = reject; r.readAsDataURL(file);
+      });
+      const base64 = dataUrl.split(",")[1];
+      const res: any = await parseOrderAI({ token: token ?? "", imageBase64: base64, imageMediaType: file.type || "image/jpeg" });
+      applyImport(res.matched, res.unmatched);
+    } catch (e: any) {
+      setImportMsg({ ok: false, text: String(e?.message ?? e).replace(/^.*Error:\s*/s, "").split("\n")[0] });
+    } finally { setImportBusy(false); }
+  };
+
+  const runExcelImport = async (file: File) => {
+    setImportBusy(true); setImportMsg(null);
+    try {
+      const res = await parseExcelOrder(file, catalog);
+      applyImport(res.matched, res.unmatched);
+    } catch (e: any) {
+      setImportMsg({ ok: false, text: t("تعذّر قراءة ملف الإكسيل", "Could not read the Excel file") });
+    } finally { setImportBusy(false); }
+  };
 
   const repeatLast = async () => {
     if (!customerId) return;
@@ -243,6 +312,52 @@ export default function InvoiceCreate() {
 
       {customerId && (
         <>
+          {/* استيراد طلب العميل: نص/صورة (ذكاء اصطناعي) أو ملف إكسيل */}
+          <div className="card no-print" style={{ marginBottom: 14, padding: 14, borderInlineStart: "3px solid var(--accent)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div className="icon-orb icon-orb-accent" style={{ width: 32, height: 32 }}><Icon name="star" size={15} /></div>
+              <div style={{ flex: 1, minWidth: 160 }}>
+                <div style={{ fontWeight: 800, fontSize: 14 }}>{t("املأ الفاتورة تلقائيًا من طلب العميل", "Fill from the customer's order")}</div>
+                <div className="text-muted" style={{ fontSize: 12 }}>{t("الصق كلام الطلب، أو صوّر ورقة الطلب، أو ارفع ملف إكسيل", "Paste the order text, snap a photo, or upload an Excel file")}</div>
+              </div>
+              <button className="btn-ghost" onClick={() => setImportOpen((o) => !o)}>
+                <Icon name={importOpen ? "x" : "plus"} size={15} /> {importOpen ? t("إغلاق", "Close") : t("فتح", "Open")}
+              </button>
+            </div>
+
+            {importOpen && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--border)", display: "grid", gap: 10 }}>
+                <textarea className="field" rows={3} value={importText} onChange={(e) => setImportText(e.target.value)}
+                  placeholder={t("مثال: ٥ كيلو طماطم، كرتونة موز، ٣ خيار، نص كيلو ريحان…", "e.g. 5kg tomato, a carton of banana, 3 cucumber…")}
+                  style={{ resize: "vertical", lineHeight: 1.7 }} />
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button className="btn-primary" disabled={importBusy} onClick={runAiImport}>
+                    <Icon name="star" size={15} /> {importBusy ? t("جارٍ التحليل…", "Analyzing…") : t("حلّل النص بالذكاء الاصطناعي", "Analyze text (AI)")}
+                  </button>
+                  <label className="btn-secondary" style={{ cursor: importBusy ? "default" : "pointer", opacity: importBusy ? 0.6 : 1 }}>
+                    <Icon name="upload" size={15} /> {t("صورة طلب", "Order photo")}
+                    <input type="file" accept="image/*" style={{ display: "none" }} disabled={importBusy}
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) runImageImport(f); e.currentTarget.value = ""; }} />
+                  </label>
+                  <label className="btn-secondary" style={{ cursor: importBusy ? "default" : "pointer", opacity: importBusy ? 0.6 : 1 }}>
+                    <Icon name="download" size={15} /> {t("ملف إكسيل", "Excel file")}
+                    <input type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} disabled={importBusy}
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) runExcelImport(f); e.currentTarget.value = ""; }} />
+                  </label>
+                </div>
+                {importMsg && (
+                  <div className={"pill " + (importMsg.ok ? "badge-success" : "badge-warning")} style={{ padding: "8px 12px" }}>
+                    <Icon name={importMsg.ok ? "check" : "alert"} size={14} /> {importMsg.text}
+                  </div>
+                )}
+                <div className="text-muted" style={{ fontSize: 11 }}>
+                  {t("النص والصورة يستخدمان الذكاء الاصطناعي؛ ملف الإكسيل يُقرأ محليًا بدون تكلفة. راجِع الأصناف والكميات قبل الحفظ.",
+                     "Text and image use AI; Excel is read locally at no cost. Review items and quantities before saving.")}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* إضافة صنف — تصفّح بالضغط أو بحث (عربي/إنجليزي) — ثابت أعلى الشاشة */}
           <div className="card item-search-sticky" style={{ marginBottom: 14, position: "sticky", top: 56, zIndex: 15, boxShadow: "0 6px 20px -10px rgba(60,10,20,.35)" }}
             onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setPickerOpen(false); }}>
