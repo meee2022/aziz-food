@@ -43,34 +43,80 @@ export function matchItem(catalog: CatalogItem[], query: string): CatalogItem | 
   return bestScore >= 55 ? best : null; // عتبة لتفادي المطابقات الضعيفة
 }
 
-/** قراءة ملف إكسيل طلب وتحويله لأصناف مطابقة (بدون ذكاء اصطناعي). */
+const NAME_KEYS = ["description", "item", "product", "name", "الصنف", "اسم الصنف", "البيان", "المنتج", "الاصناف"];
+const QTY_KEYS = ["qty", "quantity", "الكمية", "كمية", "العدد", "عدد"];
+
+const toNum = (c: any): number => {
+  if (c === null || c === undefined) return NaN;
+  const s = String(c).trim().replace(/[,٬،]/g, ".").replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+  if (!s) return NaN;
+  const n = Number(s);
+  return isNaN(n) ? NaN : n;
+};
+
+/** يبحث عن صف الترويسة ويحدّد عمودي «الصنف» و«الكمية». */
+function findHeader(rows: any[][]): { row: number; name: number; qty: number } | null {
+  const limit = Math.min(rows.length, 40);
+  for (let r = 0; r < limit; r++) {
+    const cells = rows[r] || [];
+    let name = -1, qty = -1;
+    for (let c = 0; c < cells.length; c++) {
+      const v = norm(String(cells[c] ?? ""));
+      if (!v) continue;
+      if (name < 0 && NAME_KEYS.some((k) => v === norm(k) || v.includes(norm(k)))) name = c;
+      if (qty < 0 && QTY_KEYS.some((k) => v === norm(k) || v.includes(norm(k)))) qty = c;
+    }
+    if (name >= 0 && qty >= 0) return { row: r, name, qty };
+  }
+  return null;
+}
+
+/**
+ * قراءة ملف إكسيل طلب وتحويله لأصناف مطابقة (بدون ذكاء اصطناعي).
+ * يقرأ ترويسة الأعمدة (Description/QTY أو الصنف/الكمية) ليأخذ الكمية من عمودها الصحيح،
+ * ويتجاهل الأصناف بلا كمية — فقائمة الأسعار الكاملة لا تُضاف، فقط المطلوب فعلًا.
+ */
 export async function parseExcelOrder(file: File, catalog: CatalogItem[]): Promise<ImportResult> {
   const rows = await readExcelRaw(file);
   const matched: ParsedLine[] = [];
   const unmatched: string[] = [];
   const seen = new Map<string, ParsedLine>();
 
-  for (const row of rows) {
-    if (!row || row.length === 0) continue;
-    // اسم = أول خلية نصية طويلة؛ الكمية = أول رقم موجب
-    let name = "";
-    let qty = NaN;
-    for (const cell of row) {
-      if (cell === null || cell === undefined || String(cell).trim() === "") continue;
-      const n = Number(String(cell).replace(/[,٬،]/g, "."));
-      if (!name && isNaN(n) && String(cell).trim().length >= 2) name = String(cell).trim();
-      else if (isNaN(qty) && !isNaN(n) && n > 0) qty = n;
-    }
-    if (!name) continue;
-    if (isNaN(qty)) qty = 1; // بدون كمية ⇒ 1
-    if (/^(الصنف|اسم|item|name|description|رقم|qty|الكمية|price|السعر)/i.test(name)) continue; // تخطّي الترويسة
-
+  const add = (name: string, qty: number) => {
     const it = matchItem(catalog, name);
     if (it) {
       const prev = seen.get(it.itemId);
       if (prev) prev.qty = Math.round((prev.qty + qty) * 100) / 100;
       else { const line = { itemId: it.itemId, name: it.name, nameAr: it.nameAr, unit: it.unit, qty }; seen.set(it.itemId, line); matched.push(line); }
     } else unmatched.push(name);
+  };
+
+  const h = findHeader(rows);
+  if (h) {
+    for (let r = h.row + 1; r < rows.length; r++) {
+      const cells = rows[r] || [];
+      const name = String(cells[h.name] ?? "").trim();
+      if (name.length < 2) continue;
+      const qty = toNum(cells[h.qty]);
+      if (!(qty > 0)) continue; // بلا كمية ⇒ لم يُطلب
+      add(name, qty);
+    }
+    return { matched, unmatched };
+  }
+
+  // بلا ترويسة: ملف بسيط (اسم، كمية) — أول نص = الصنف، أول رقم موجب بعده = الكمية
+  for (const row of rows) {
+    if (!row || row.length === 0) continue;
+    let name = "";
+    let qty = NaN;
+    for (const cell of row) {
+      if (cell === null || cell === undefined || String(cell).trim() === "") continue;
+      const n = toNum(cell);
+      if (!name && isNaN(n) && String(cell).trim().length >= 2) name = String(cell).trim();
+      else if (name && isNaN(qty) && !isNaN(n) && n > 0) qty = n;
+    }
+    if (!name) continue;
+    add(name, isNaN(qty) ? 1 : qty);
   }
   return { matched, unmatched };
 }
