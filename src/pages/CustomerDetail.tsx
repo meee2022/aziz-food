@@ -107,7 +107,16 @@ export default function CustomerDetail() {
                   <td>{
                     row.kind === "invoice" ? <span className="pill badge-info">{row.ref}</span>
                     : row.kind === "return" ? <span className="pill badge-warning"><Icon name="back" size={11} /> {t("مرتجع", "Return")}{row.ref !== "—" ? ` · ${row.ref}` : ""}</span>
-                    : <span className="pill badge-success"><Icon name="edit" size={11} /> {t("دفعة", "Payment")}</span>
+                    : <span style={{ display: "inline-flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+                        <span className="pill badge-success"><Icon name="edit" size={11} /> {t("دفعة", "Payment")}</span>
+                        {row.coveredInvoices?.length
+                          ? row.coveredInvoices.map((cv: any, k: number) => (
+                              <span key={k} className="pill badge-info" style={{ fontSize: 10.5 }} title={t("غطّت هذه الفاتورة", "Covered this invoice")}>
+                                {cv.number} · {money(cv.amount, false)}
+                              </span>
+                            ))
+                          : <span className="text-muted" style={{ fontSize: 11 }}>{t("(غير مخصّصة لفاتورة)", "(unallocated)")}</span>}
+                      </span>
                   }</td>
                   <td className="tabular">{row.debit ? money(row.debit, false) : "—"}</td>
                   <td className="tabular">{row.credit ? money(row.credit, false) : "—"}</td>

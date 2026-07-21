@@ -353,6 +353,9 @@ export const statement = query({
     const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
     const totalReturned = returns.reduce((s, r) => s + r.total, 0);
 
+    // خريطة رقم الفاتورة من مُعرِّفها (لعرض «الدفعة غطّت فاتورة رقم…»)
+    const invNumberById = new Map(invoices.map((i) => [i._id, i.number]));
+
     // حركة موحّدة مرتبة زمنيًا
     const ledger = [
       ...approved.map((i) => ({
@@ -375,6 +378,11 @@ export const statement = query({
         method: p.method,
         note: p.note ?? "",
         allocations: p.allocations ?? [],
+        // أرقام الفواتير التي غطّتها هذه الدفعة (توزيعها)
+        coveredInvoices: (p.allocations ?? []).map((a) => ({
+          number: invNumberById.get(a.invoiceId) ?? "—",
+          amount: a.amount,
+        })),
       })),
       ...returns.map((r) => ({
         kind: "return" as const,
