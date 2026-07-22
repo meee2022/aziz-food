@@ -16,26 +16,33 @@ export default function Invoices() {
   const t = useT(); const { lang } = useLang();
   const navigate = useNavigate();
   const [status, setStatus] = useState<string>("");
-  const [branch, setBranch] = useState<string>("");
+  // فروع مختارة (فارغة = كل الفروع). "__none" = فواتير بدون فرع.
+  const [selBranches, setSelBranches] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const all = useQuery(api.invoices.list, status ? { status: status as any } : {});
+
+  const toggleBranch = (b: string) =>
+    setSelBranches((prev) => { const n = new Set(prev); n.has(b) ? n.delete(b) : n.add(b); return n; });
 
   // الفروع المستخدمة فعلًا في الفواتير — لا حاجة لجدول فروع منفصل
   const branches = useMemo(() => {
     if (!all) return [];
     return [...new Set(all.map((i) => i.branch).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, "ar"));
   }, [all]);
+  const hasNoBranch = useMemo(() => (all ?? []).some((i) => !i.branch), [all]);
 
   const invoices = useMemo(() => {
     if (!all) return [];
     const q = search.trim().toLowerCase();
     return all.filter((inv) => {
-      if (branch === "__none") { if (inv.branch) return false; }
-      else if (branch && inv.branch !== branch) return false;
+      if (selBranches.size > 0) {
+        const ok = inv.branch ? selBranches.has(inv.branch) : selBranches.has("__none");
+        if (!ok) return false;
+      }
       if (!q) return true;
       return [inv.number, inv.customerName, inv.branch].some((f) => f?.toLowerCase().includes(q));
     });
-  }, [all, branch, search]);
+  }, [all, selBranches, search]);
 
   if (all === undefined) return <Spinner />;
 
@@ -50,17 +57,35 @@ export default function Invoices() {
             {s === "" ? t("الكل", "All") : t(STATUS[s][0], STATUS[s][1])}
           </button>
         ))}
-        {branches.length > 0 && (
-          <select className="field" value={branch} onChange={(e) => setBranch(e.target.value)} style={{ width: "auto", minWidth: 150 }}>
-            <option value="">{t("كل الفروع", "All branches")}</option>
-            {branches.map((b) => <option key={b} value={b}>{b}</option>)}
-            <option value="__none">{t("بدون فرع", "No branch")}</option>
-          </select>
-        )}
         <input className="field" value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder={t("ابحث برقم الفاتورة أو العميل أو الفرع…", "Search number, customer or branch…")}
           style={{ width: "auto", flex: "1 1 220px", minWidth: 180 }} />
       </div>
+
+      {/* فلتر الفروع — اختيار متعدد (اضغط الفروع اللي عايزها) */}
+      {branches.length > 0 && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+          <span className="text-muted" style={{ fontSize: 12, fontWeight: 700 }}>{t("الفروع:", "Branches:")}</span>
+          <button className={selBranches.size === 0 ? "btn-primary" : "btn-ghost"} style={{ padding: "5px 12px", fontSize: 13 }} onClick={() => setSelBranches(new Set())}>
+            {t("الكل", "All")}
+          </button>
+          {branches.map((b) => (
+            <button key={b} className={selBranches.has(b) ? "btn-primary" : "btn-ghost"} style={{ padding: "5px 12px", fontSize: 13 }} onClick={() => toggleBranch(b)}>
+              {selBranches.has(b) && <Icon name="check" size={12} />} {b}
+            </button>
+          ))}
+          {hasNoBranch && (
+            <button className={selBranches.has("__none") ? "btn-primary" : "btn-ghost"} style={{ padding: "5px 12px", fontSize: 13 }} onClick={() => toggleBranch("__none")}>
+              {selBranches.has("__none") && <Icon name="check" size={12} />} {t("بدون فرع", "No branch")}
+            </button>
+          )}
+          {selBranches.size > 0 && (
+            <span className="text-muted" style={{ fontSize: 11.5 }}>
+              {t(`(${selBranches.size} مختار)`, `(${selBranches.size} selected)`)}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="card" style={{ padding: 0, overflowX: "auto" }}>
         <table className="data-table">
