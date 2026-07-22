@@ -123,7 +123,7 @@ export default function CustomerDetail() {
         <SpecialPrices customerId={cid} customers={customers ?? []} copyFrom={copyFrom} setCopyFrom={setCopyFrom} onCopy={async () => { if (copyFrom) { await copyPrices({ fromId: copyFrom as any, toId: cid }); setCopyFrom(""); } }} />
       )}
 
-      {payOpen && <PaymentModal customerId={cid} defaultAmount={st.balance > 0 ? st.balance : 0} onClose={() => setPayOpen(false)} />}
+      {payOpen && <PaymentModal customerId={cid} onClose={() => setPayOpen(false)} />}
       {editPay && <PaymentModal customerId={cid} payment={editPay} onClose={() => setEditPay(null)} />}
     </div>
   );
@@ -289,7 +289,7 @@ function PaymentAllocationDetails({ row, lang, t, onEdit, navigate }: any) {
   );
 }
 
-function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
+function PaymentModal({ customerId, payment, onClose }: any) {
   const t = useT();
   const { lang } = useLang();
   const { user } = useAuth();
@@ -301,7 +301,7 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
   const outstanding = useQuery(api.invoices.outstanding, { customerId, includeIds: existingAllocations.map((a: any) => a.invoiceId) });
   const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-  const [amount, setAmount] = useState<number>(isEdit ? payment.credit : (defaultAmount || 0));
+  const [amount, setAmount] = useState<number>(isEdit ? payment.credit : 0);
   const [method, setMethod] = useState<string>(isEdit ? (payment.method === "cash" || payment.method === "fawran" ? payment.method : "bank") : "cash");
   const [date, setDate] = useState<string>(isEdit ? payment.date : today());
   const [note, setNote] = useState<string>(isEdit ? (payment.note || "") : "");
