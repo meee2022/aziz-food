@@ -126,14 +126,14 @@ export const lastForCustomer = query({
 
 /** فواتير العميل المعتمدة التي عليها مبلغ متبقٍّ (لتوزيع الدفعات عليها). */
 export const outstanding = query({
-  args: { customerId: v.id("customers") },
-  handler: async (ctx, { customerId }) => {
+  args: { customerId: v.id("customers"), includeIds: v.optional(v.array(v.id("invoices"))) },
+  handler: async (ctx, { customerId, includeIds }) => {
     const rows = await ctx.db
       .query("invoices")
       .withIndex("by_customer", (q) => q.eq("customerId", customerId))
       .collect();
     return rows
-      .filter((i) => i.status === "approved" && i.total - i.paidAmount > 0.01)
+      .filter((i) => i.status === "approved" && (i.total - i.paidAmount > 0.01 || includeIds?.includes(i._id)))
       .sort((a, b) => a.createdAt - b.createdAt)
       .map((i) => ({
         _id: i._id,

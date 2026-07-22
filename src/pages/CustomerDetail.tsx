@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
 import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "../lib/authedConvex";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
@@ -24,6 +24,7 @@ export default function CustomerDetail() {
   const [tab, setTab] = useState<"statement" | "prices">("statement");
   const [payOpen, setPayOpen] = useState(false);
   const [editPay, setEditPay] = useState<any>(null);
+  const [expandedPayment, setExpandedPayment] = useState<string | null>(null);
   const [copyFrom, setCopyFrom] = useState("");
 
   if (st === undefined) return <Spinner />;
@@ -101,15 +102,18 @@ export default function CustomerDetail() {
             <thead><tr><th>{t("التاريخ", "Date")}</th><th>{t("رقم الفاتورة", "Invoice #")}</th><th>{t("الفواتير", "Invoices")}</th><th>{t("الدفعة", "Payment")}</th><th>{t("الرصيد", "Balance")}</th><th>{t("طريقة الدفع", "Payment Method")}</th></tr></thead>
             <tbody>
               {st.ledger.map((row: any) => (
-                <tr key={row.id} style={{ cursor: row.kind === "return" ? "default" : "pointer" }}
-                  onClick={() => row.kind === "invoice" ? navigate(`/invoice/${row.id}`) : row.kind === "payment" ? setEditPay(row) : undefined}>
+                <Fragment key={row.id}>
+                <tr style={{ cursor: row.kind === "return" ? "default" : "pointer", background: expandedPayment === row.id ? "color-mix(in srgb,var(--accent) 8%,var(--card))" : undefined }}
+                  onClick={() => row.kind === "invoice" ? navigate(`/invoice/${row.id}`) : row.kind === "payment" ? setExpandedPayment((v) => v === row.id ? null : row.id) : undefined}>
                   <td>{formatDate(row.date, lang)}</td>
-                  <td className="tabular">{row.kind === "invoice" ? row.ref : row.kind === "return" ? row.ref : row.coveredInvoices?.map((cv: any) => cv.number).join(", ") || "—"}</td>
+                  <td className="tabular">{row.kind === "invoice" ? row.ref : row.kind === "return" ? row.ref : <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><span aria-hidden>{expandedPayment === row.id ? "▴" : "▾"}</span><b>{row.coveredInvoices?.length || 0}</b> {t("فاتورة", "invoice(s)")}</span>}</td>
                   <td className="tabular">{row.debit ? money(row.debit, false) : "—"}</td>
                   <td className="tabular">{row.credit ? money(row.credit, false) : "—"}</td>
                   <td className="tabular" style={{ fontWeight: 700 }}>{money(row.balance, false)}</td>
                   <td>{row.kind === "payment" ? t(row.method === "cash" ? "كاش" : row.method === "fawran" ? "فورا" : "بنك", row.method === "cash" ? "Cash" : row.method === "fawran" ? "Fawran" : "Bank") : "—"}</td>
                 </tr>
+                {row.kind === "payment" && expandedPayment === row.id && <tr className="no-print"><td colSpan={6} style={{ padding: 0 }}><PaymentAllocationDetails row={row} lang={lang} t={t} onEdit={() => setEditPay(row)} navigate={navigate} /></td></tr>}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -256,14 +260,45 @@ function SummaryTile({ label, value, good, danger }: { label: string; value: str
   );
 }
 
+function PaymentAllocationDetails({ row, lang, t, onEdit, navigate }: any) {
+  const covered = row.coveredInvoices ?? [];
+  return (
+    <div style={{ padding: 14, background: "color-mix(in srgb,var(--surface) 72%,var(--card))", borderBlock: "1px solid var(--border)" }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: covered.length ? 10 : 0 }}>
+        <div>
+          <b>{t(`تفاصيل توزيع الدفعة على ${covered.length} فاتورة`, `Payment allocation across ${covered.length} invoice(s)`)}</b>
+          {row.note && <div className="text-muted" style={{ fontSize: 11.5, marginTop: 3 }}>{row.note}</div>}
+        </div>
+        <button className="btn-ghost" style={{ padding: "5px 10px" }} onClick={onEdit}><Icon name="edit" size={13} /> {t("تعديل الدفعة", "Edit payment")}</button>
+      </div>
+      {covered.length ? <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 9 }}>
+        <table className="data-table" style={{ fontSize: 12 }}>
+          <thead><tr><th>{t("رقم الفاتورة", "Invoice #")}</th><th>{t("التاريخ", "Date")}</th><th>{t("إجمالي الفاتورة", "Invoice total")}</th><th>{t("من هذه الدفعة", "From this payment")}</th><th>{t("إجمالي المدفوع", "Total paid")}</th><th>{t("المتبقي الآن", "Remaining now")}</th><th>{t("الحالة", "Status")}</th></tr></thead>
+          <tbody>{covered.map((cv: any) => <tr key={cv.id} onClick={() => navigate(`/invoice/${cv.id}`)} style={{ cursor: "pointer" }}>
+            <td className="tabular" style={{ fontWeight: 800, color: "var(--primary)" }}>{cv.number}</td>
+            <td>{cv.date ? formatDate(cv.date, lang) : "—"}</td>
+            <td className="tabular">{money(cv.total, false)}</td>
+            <td className="tabular" style={{ fontWeight: 800 }}>{money(cv.amount, false)}</td>
+            <td className="tabular">{money(cv.paidAmount, false)}</td>
+            <td className="tabular">{money(cv.remaining, false)}</td>
+            <td><span className={"pill " + (cv.remaining <= .01 ? "badge-success" : "badge-warning")}>{cv.remaining <= .01 ? t("مدفوعة", "Paid") : t("جزئية", "Partial")}</span></td>
+          </tr>)}</tbody>
+        </table>
+      </div> : <div className="text-muted" style={{ fontSize: 12 }}>{t("هذه الدفعة غير موزعة على فواتير محددة، وتم خصمها من الرصيد العام للعميل.", "This payment is unallocated and was applied to the customer's overall balance.")}</div>}
+    </div>
+  );
+}
+
 function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
   const t = useT();
+  const { lang } = useLang();
   const { user } = useAuth();
   const isEdit = !!payment;
   const create = useMutation(api.payments.create);
   const update = useMutation(api.payments.update);
   const remove = useMutation(api.payments.remove);
-  const outstanding = useQuery(api.invoices.outstanding, { customerId });
+  const existingAllocations = isEdit && payment.allocations ? payment.allocations : [];
+  const outstanding = useQuery(api.invoices.outstanding, { customerId, includeIds: existingAllocations.map((a: any) => a.invoiceId) });
   const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
   const [amount, setAmount] = useState<number>(isEdit ? payment.credit : (defaultAmount || 0));
@@ -279,7 +314,7 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
 
   const distribute = (amt: number): Record<string, number> => {
     let left = amt; const n: Record<string, number> = {};
-    for (const inv of (outstanding || [])) { if (left <= 0.001) break; const take = Math.min(left, inv.remaining); if (take > 0) { n[inv._id] = r2(take); left = r2(left - take); } }
+    for (const inv of (outstanding || [])) { if (left <= 0.001) break; const capacity = r2(inv.remaining + Number(allocs[inv._id] || 0)); const take = Math.min(left, capacity); if (take > 0) { n[inv._id] = r2(take); left = r2(left - take); } }
     return n;
   };
 
@@ -289,7 +324,7 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amount, autoMode, outstanding]);
 
-  const toggle = (inv: any) => { setAutoMode(false); setAllocs((prev) => { const n = { ...prev }; if (inv._id in n) delete n[inv._id]; else n[inv._id] = inv.remaining; return n; }); };
+  const toggle = (inv: any) => { setAutoMode(false); setAllocs((prev) => { const n = { ...prev }; if (inv._id in n) delete n[inv._id]; else n[inv._id] = r2(inv.remaining + Number(existingAllocations.find((a: any) => a.invoiceId === inv._id)?.amount || 0)); return n; }); };
   const setAlloc = (id: string, v: number) => { setAutoMode(false); setAllocs((prev) => ({ ...prev, [id]: v })); };
   const allocated = r2(Object.values(allocs).reduce((s, v) => s + (Number(v) || 0), 0));
 
@@ -299,7 +334,7 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
   const paidSummary = useMemo(() =>
     (outstanding || [])
       .filter((inv: any) => Number(allocs[inv._id]) > 0)
-      .map((inv: any) => ({ number: inv.number, paid: r2(Number(allocs[inv._id])), remaining: inv.remaining, full: Number(allocs[inv._id]) >= inv.remaining - 0.01 })),
+      .map((inv: any) => { const old = Number(existingAllocations.find((a: any) => a.invoiceId === inv._id)?.amount || 0); const available = r2(inv.remaining + old); return { number: inv.number, paid: r2(Number(allocs[inv._id])), remaining: available, full: Number(allocs[inv._id]) >= available - 0.01 }; }),
     [outstanding, allocs]);
 
   const save = async () => {
@@ -313,7 +348,7 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
   };
 
   return (
-    <Modal open title={isEdit ? t("تعديل دفعة", "Edit Payment") : t("تسجيل دفعة", "Add Payment")} onClose={onClose}>
+    <Modal open wide title={isEdit ? t("تعديل دفعة", "Edit Payment") : t("تسجيل دفعة", "Add Payment")} onClose={onClose}>
       <div style={{ display: "grid", gap: 12 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 12 }}>
           <div><label className="label">{t("المبلغ", "Amount")}</label><NumField autoFocus value={amount} onChange={setAmount} style={{ fontSize: 18, fontWeight: 800 }} /></div>
@@ -333,14 +368,21 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
                 <Icon name="check" size={13} /> {t("توزيع تلقائي", "Auto")}{autoMode ? t(" ✓", " ✓") : ""}
               </button>
             </div>
-            <div style={{ maxHeight: 220, overflowY: "auto", display: "grid", gap: 6 }}>
-              {outstanding.map((inv: any) => { const on = inv._id in allocs; return (
-                <div key={inv._id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 8, background: on ? "color-mix(in srgb,var(--accent) 14%,transparent)" : "var(--surface)" }}>
-                  <input type="checkbox" checked={on} onChange={() => toggle(inv)} />
-                  <span style={{ fontWeight: 700, fontSize: 13, minWidth: 92 }} className="tabular">{inv.number}</span>
-                  <span className="text-muted" style={{ fontSize: 12, flex: 1 }}>{t("المتبقي", "Rem")}: {money(inv.remaining, false)}</span>
-                  <NumField disabled={!on} value={on ? allocs[inv._id] : ""} placeholder="—" onChange={(n) => setAlloc(inv._id, n)} style={{ width: 96, padding: "5px 8px" }} />
-                </div> ); })}
+            <div style={{ maxHeight: 300, overflow: "auto", border: "1px solid var(--border)", borderRadius: 9 }}>
+              <table className="data-table" style={{ fontSize: 12 }}>
+                <thead><tr><th></th><th>{t("رقم الفاتورة", "Invoice #")}</th><th>{t("التاريخ", "Date")}</th><th>{t("الإجمالي", "Total")}</th><th>{t("مدفوع سابقًا", "Paid")}</th><th>{t("المتبقي", "Remaining")}</th><th>{t("من هذه الدفعة", "This payment")}</th><th>{t("الحالة بعدها", "After payment")}</th></tr></thead>
+                <tbody>{outstanding.map((inv: any) => { const on = inv._id in allocs; const applied = Number(allocs[inv._id]) || 0; const old = Number(existingAllocations.find((a: any) => a.invoiceId === inv._id)?.amount || 0); const available = r2(inv.remaining + old); const paidBefore = r2(Math.max(0, inv.paidAmount - old)); const left = r2(Math.max(0, available - applied)); return (
+                  <tr key={inv._id} style={{ background: on ? "color-mix(in srgb,var(--accent) 12%,var(--card))" : undefined }}>
+                    <td><input type="checkbox" checked={on} onChange={() => toggle(inv)} /></td>
+                    <td className="tabular" style={{ fontWeight: 800 }}>{inv.number}</td>
+                    <td>{formatDate(inv.date, lang)}</td>
+                    <td className="tabular">{money(inv.total, false)}</td>
+                    <td className="tabular">{money(paidBefore, false)}</td>
+                    <td className="tabular" style={{ fontWeight: 700 }}>{money(available, false)}</td>
+                    <td><NumField disabled={!on} value={on ? allocs[inv._id] : ""} placeholder="—" onChange={(n) => setAlloc(inv._id, Math.min(n, available))} style={{ width: 105, padding: "5px 8px" }} /></td>
+                    <td><span className={"pill " + (left <= .01 ? "badge-success" : on ? "badge-warning" : "badge-muted")} style={{ whiteSpace: "nowrap", fontSize: 10.5 }}>{left <= .01 ? t("مدفوعة", "Paid") : on ? t(`جزئية · ${money(left, false)}`, `Partial · ${money(left, false)}`) : t("غير مدفوعة", "Unpaid")}</span></td>
+                  </tr> ); })}</tbody>
+              </table>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 12.5, fontWeight: 700 }}>
               <span className="text-muted">{t("الموزّع", "Allocated")}: <b className="tabular">{money(allocated, false)}</b></span>
@@ -374,7 +416,7 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
         )}
 
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn-primary" style={{ flex: 1 }} disabled={saving || amount <= 0} onClick={save}><Icon name="check" size={16} /> {isEdit ? t("حفظ التعديلات", "Save Changes") : t("حفظ الدفعة", "Save Payment")}</button>
+          <button className="btn-primary" style={{ flex: 1 }} disabled={saving || amount <= 0 || allocated > amount + .01} onClick={save}><Icon name="check" size={16} /> {isEdit ? t("حفظ التعديلات", "Save Changes") : t("حفظ الدفعة", "Save Payment")}</button>
           {isEdit && <button className="btn-danger" onClick={() => confirm(t("حذف الدفعة؟", "Delete payment?")) && remove({ id: payment.id, by: user?.name }).then(onClose)}><Icon name="trash" size={16} /> {t("حذف", "Delete")}</button>}
         </div>
       </div>
