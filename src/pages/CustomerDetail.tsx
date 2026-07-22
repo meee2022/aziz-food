@@ -97,30 +97,18 @@ export default function CustomerDetail() {
 
       {tab === "statement" ? (
         <div className="card" style={{ padding: 0, overflowX: "auto" }}>
-          <table className="data-table">
-            <thead><tr><th>{t("التاريخ", "Date")}</th><th>{t("البيان", "Ref")}</th><th>{t("مدين", "Debit")}</th><th>{t("دائن", "Credit")}</th><th>{t("الرصيد", "Balance")}</th></tr></thead>
+          <table className="data-table statement-table">
+            <thead><tr><th>{t("التاريخ", "Date")}</th><th>{t("رقم الفاتورة", "Invoice #")}</th><th>{t("الفواتير", "Invoices")}</th><th>{t("الدفعة", "Payment")}</th><th>{t("الرصيد", "Balance")}</th><th>{t("رقم الشيك", "Cheque #")}</th></tr></thead>
             <tbody>
               {st.ledger.map((row: any) => (
                 <tr key={row.id} style={{ cursor: row.kind === "return" ? "default" : "pointer" }}
                   onClick={() => row.kind === "invoice" ? navigate(`/invoice/${row.id}`) : row.kind === "payment" ? setEditPay(row) : undefined}>
                   <td>{formatDate(row.date, lang)}</td>
-                  <td>{
-                    row.kind === "invoice" ? <span className="pill badge-info">{row.ref}</span>
-                    : row.kind === "return" ? <span className="pill badge-warning"><Icon name="back" size={11} /> {t("مرتجع", "Return")}{row.ref !== "—" ? ` · ${row.ref}` : ""}</span>
-                    : <span style={{ display: "inline-flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
-                        <span className="pill badge-success"><Icon name="edit" size={11} /> {t("دفعة", "Payment")}</span>
-                        {row.coveredInvoices?.length
-                          ? row.coveredInvoices.map((cv: any, k: number) => (
-                              <span key={k} className="pill badge-info" style={{ fontSize: 10.5 }} title={t("غطّت هذه الفاتورة", "Covered this invoice")}>
-                                {cv.number} · {money(cv.amount, false)}
-                              </span>
-                            ))
-                          : <span className="text-muted" style={{ fontSize: 11 }}>{t("(غير مخصّصة لفاتورة)", "(unallocated)")}</span>}
-                      </span>
-                  }</td>
+                  <td className="tabular">{row.kind === "invoice" ? row.ref : row.kind === "return" ? row.ref : row.coveredInvoices?.map((cv: any) => cv.number).join(", ") || "—"}</td>
                   <td className="tabular">{row.debit ? money(row.debit, false) : "—"}</td>
                   <td className="tabular">{row.credit ? money(row.credit, false) : "—"}</td>
                   <td className="tabular" style={{ fontWeight: 700 }}>{money(row.balance, false)}</td>
+                  <td className="tabular">{row.chequeNumber || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -282,6 +270,7 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
   const [method, setMethod] = useState<string>(isEdit ? payment.method : "cash");
   const [date, setDate] = useState<string>(isEdit ? payment.date : today());
   const [note, setNote] = useState<string>(isEdit ? (payment.note || "") : "");
+  const [chequeNumber, setChequeNumber] = useState<string>(isEdit ? (payment.chequeNumber || "") : "");
   const [allocs, setAllocs] = useState<Record<string, number>>(
     isEdit && payment.allocations ? Object.fromEntries(payment.allocations.map((a: any) => [a.invoiceId, a.amount])) : {},
   );
@@ -318,8 +307,8 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
     setSaving(true);
     const allocations = Object.entries(allocs).filter(([, v]) => Number(v) > 0).map(([invoiceId, amt]) => ({ invoiceId: invoiceId as any, amount: Number(amt) }));
     try {
-      if (isEdit) await update({ id: payment.id, amount: Number(amount), method: method as any, date, note: note || undefined, allocations, editedBy: user?.name });
-      else await create({ customerId, amount: Number(amount), method: method as any, date, note: note || undefined, allocations, createdBy: user?.name });
+      if (isEdit) await update({ id: payment.id, amount: Number(amount), method: method as any, date, chequeNumber, note: note || undefined, allocations, editedBy: user?.name });
+      else await create({ customerId, amount: Number(amount), method: method as any, date, chequeNumber: chequeNumber || undefined, note: note || undefined, allocations, createdBy: user?.name });
       onClose();
     } finally { setSaving(false); }
   };
@@ -335,7 +324,10 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
             </select></div>
           <div><label className="label">{t("التاريخ", "Date")}</label><input className="field tabular" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
         </div>
-        <div><label className="label">{t("ملاحظة", "Note")}</label><input className="field" value={note} onChange={(e) => setNote(e.target.value)} /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
+          <div><label className="label">{t("رقم الشيك", "Cheque #")}</label><input className="field tabular" value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} /></div>
+          <div><label className="label">{t("ملاحظة", "Note")}</label><input className="field" value={note} onChange={(e) => setNote(e.target.value)} /></div>
+        </div>
 
         {outstanding && outstanding.length > 0 && (
           <div style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 12 }}>

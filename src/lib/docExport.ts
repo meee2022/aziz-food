@@ -278,10 +278,11 @@ export function statementToWord(st: any, customer: any, s: Company, dateStr: str
   const rows = st.ledger.map((r: any) =>
     `<tr>
       <td class="c">${esc(r.date)}</td>
-      <td class="s">${ROW_KIND[r.kind] ?? r.kind}${r.ref && r.ref !== "—" ? " · " + esc(r.ref) : ""}</td>
+      <td class="c">${esc(r.kind === "invoice" || r.kind === "return" ? r.ref : (r.coveredInvoices ?? []).map((x: any) => x.number).join(", ") || "—")}</td>
       <td class="e">${r.debit ? num(r.debit) : "—"}</td>
       <td class="e">${r.credit ? num(r.credit) : "—"}</td>
       <td class="e"><b>${num(r.balance)}</b></td>
+      <td class="c">${esc(r.chequeNumber || "—")}</td>
     </tr>`).join("");
 
   const html = `<!DOCTYPE html><html dir="rtl" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
@@ -320,7 +321,7 @@ export function statementToWord(st: any, customer: any, s: Company, dateStr: str
   </tr></table>
 
   <table class="led">
-    <tr><th>التاريخ</th><th>البيان</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr>
+    <tr><th>التاريخ</th><th>رقم الفاتورة</th><th>الفواتير</th><th>الدفعة</th><th>الرصيد</th><th>رقم الشيك</th></tr>
     ${rows}
   </table>
 </body></html>`;
@@ -337,7 +338,7 @@ export async function statementToExcel(st: any, customer: any, s: Company, dateS
   const cells: { r: number; c: number; v: any; t?: string; s?: any }[] = [];
   const merges: any[] = [];
   const put = (r: number, c: number, v: any, st2?: any, t?: string) => cells.push({ r, c, v, s: st2, t });
-  const full = (r: number, e = 4) => merges.push({ s: { r, c: 0 }, e: { r, c: e } });
+  const full = (r: number, e = 5) => merges.push({ s: { r, c: 0 }, e: { r, c: e } });
 
   let R = 0;
   put(R, 0, h.nameAr, XS.coAr); full(R++);
@@ -356,18 +357,19 @@ export async function statementToExcel(st: any, customer: any, s: Company, dateS
   metaRow("المرتجعات", st.totalReturned ?? 0, "الرصيد المتبقي", st.balance);
   R++;
 
-  ["التاريخ", "البيان", "مدين", "دائن", "الرصيد"].forEach((th, c) => put(R, c, th, XS.th));
+  ["التاريخ", "رقم الفاتورة", "الفواتير", "الدفعة", "الرصيد", "رقم الشيك"].forEach((th, c) => put(R, c, th, XS.th));
   R++;
   for (const row of st.ledger) {
     put(R, 0, row.date, XS.cell);
-    put(R, 1, (ROW_KIND[row.kind] ?? row.kind) + (row.ref && row.ref !== "—" ? " · " + row.ref : ""), XS.cellS);
+    put(R, 1, row.kind === "invoice" || row.kind === "return" ? row.ref : (row.coveredInvoices ?? []).map((x: any) => x.number).join(", ") || "—", XS.cellS);
     put(R, 2, row.debit || "", row.debit ? XS.numCell : XS.cell, row.debit ? "n" : "s");
     put(R, 3, row.credit || "", row.credit ? XS.numCell : XS.cell, row.credit ? "n" : "s");
     put(R, 4, row.balance, XS.numCell, "n");
+    put(R, 5, row.chequeNumber || "", XS.cell);
     R++;
   }
 
-  const ws = buildStyledSheet(XLSX, { cells, merges, rows: R, cols: [15, 30, 13, 13, 15] });
+  const ws = buildStyledSheet(XLSX, { cells, merges, rows: R, cols: [15, 20, 15, 15, 15, 18] });
   const wb = XLSX.utils.book_new();
   wb.Workbook = { Views: [{ RTL: true }] }; // اتجاه الورقة من اليمين لليسار
   XLSX.utils.book_append_sheet(wb, ws, "Statement");
