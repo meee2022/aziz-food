@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "../lib/authedConvex";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
@@ -13,6 +13,9 @@ export default function InvoiceView() {
   const t = useT(); const { lang } = useLang();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // «رجوع»: يرجع للصفحة اللي جيت منها (كشف حساب العميل مثلًا) إن وُجد سجل تنقّل، وإلا للفواتير
+  const goBack = () => { if (location.key !== "default") navigate(-1); else navigate("/invoices"); };
   const inv = useQuery(api.invoices.get, { id: id as any });
   const settings = useQuery(api.settings.all, {});
   const approve = useMutation(api.invoices.approve);
@@ -86,7 +89,7 @@ export default function InvoiceView() {
     <div className="animate-in">
       {/* أزرار التحكم — لا تُطبع */}
       <div className="no-print" style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-        <Link to="/invoices" className="btn-ghost"><Icon name="back" size={16} /> {t("رجوع", "Back")}</Link>
+        <button className="btn-ghost" onClick={goBack}><Icon name="back" size={16} /> {t("رجوع", "Back")}</button>
         <div style={{ flex: 1 }} />
         {inv.status !== "cancelled" && <Link to={`/invoice/${inv._id}/edit`} className="btn-ghost"><Icon name="edit" size={16} /> {t("تعديل", "Edit")}</Link>}
         {inv.status === "draft" && <button className="btn-primary" onClick={() => approve({ id: inv._id, approvedBy: user?.name })}><Icon name="check" size={16} /> {t("اعتماد", "Approve")}</button>}
