@@ -201,8 +201,10 @@ export default defineSchema({
     customerName: v.string(),
     amount: v.number(),
     date: v.string(),
-    method: v.union(v.literal("cash"), v.literal("transfer"), v.literal("card")),
-    chequeNumber: v.optional(v.string()),
+    method: v.union(
+      v.literal("cash"), v.literal("fawran"), v.literal("bank"),
+      v.literal("transfer"), v.literal("card"),
+    ),
     invoiceId: v.optional(v.id("invoices")),
     // توزيع الدفعة على فواتير محددة (اختياري): كل عنصر = فاتورة + المبلغ المخصّص لها
     allocations: v.optional(

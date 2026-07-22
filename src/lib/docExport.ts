@@ -282,7 +282,7 @@ export function statementToWord(st: any, customer: any, s: Company, dateStr: str
       <td class="e">${r.debit ? num(r.debit) : "—"}</td>
       <td class="e">${r.credit ? num(r.credit) : "—"}</td>
       <td class="e"><b>${num(r.balance)}</b></td>
-      <td class="c">${esc(r.chequeNumber || "—")}</td>
+      <td class="c">${r.kind === "payment" ? esc(r.method === "cash" ? "كاش" : r.method === "fawran" ? "فورا" : "بنك") : "—"}</td>
     </tr>`).join("");
 
   const html = `<!DOCTYPE html><html dir="rtl" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
@@ -321,7 +321,7 @@ export function statementToWord(st: any, customer: any, s: Company, dateStr: str
   </tr></table>
 
   <table class="led">
-    <tr><th>التاريخ</th><th>رقم الفاتورة</th><th>الفواتير</th><th>الدفعة</th><th>الرصيد</th><th>رقم الشيك</th></tr>
+    <tr><th>التاريخ</th><th>رقم الفاتورة</th><th>الفواتير</th><th>الدفعة</th><th>الرصيد</th><th>طريقة الدفع</th></tr>
     ${rows}
   </table>
 </body></html>`;
@@ -357,7 +357,7 @@ export async function statementToExcel(st: any, customer: any, s: Company, dateS
   metaRow("المرتجعات", st.totalReturned ?? 0, "الرصيد المتبقي", st.balance);
   R++;
 
-  ["التاريخ", "رقم الفاتورة", "الفواتير", "الدفعة", "الرصيد", "رقم الشيك"].forEach((th, c) => put(R, c, th, XS.th));
+  ["التاريخ", "رقم الفاتورة", "الفواتير", "الدفعة", "الرصيد", "طريقة الدفع"].forEach((th, c) => put(R, c, th, XS.th));
   R++;
   for (const row of st.ledger) {
     put(R, 0, row.date, XS.cell);
@@ -365,7 +365,7 @@ export async function statementToExcel(st: any, customer: any, s: Company, dateS
     put(R, 2, row.debit || "", row.debit ? XS.numCell : XS.cell, row.debit ? "n" : "s");
     put(R, 3, row.credit || "", row.credit ? XS.numCell : XS.cell, row.credit ? "n" : "s");
     put(R, 4, row.balance, XS.numCell, "n");
-    put(R, 5, row.chequeNumber || "", XS.cell);
+    put(R, 5, row.kind === "payment" ? (row.method === "cash" ? "كاش" : row.method === "fawran" ? "فورا" : "بنك") : "", XS.cell);
     R++;
   }
 

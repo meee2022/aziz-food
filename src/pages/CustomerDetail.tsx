@@ -98,7 +98,7 @@ export default function CustomerDetail() {
       {tab === "statement" ? (
         <div className="card" style={{ padding: 0, overflowX: "auto" }}>
           <table className="data-table statement-table">
-            <thead><tr><th>{t("التاريخ", "Date")}</th><th>{t("رقم الفاتورة", "Invoice #")}</th><th>{t("الفواتير", "Invoices")}</th><th>{t("الدفعة", "Payment")}</th><th>{t("الرصيد", "Balance")}</th><th>{t("رقم الشيك", "Cheque #")}</th></tr></thead>
+            <thead><tr><th>{t("التاريخ", "Date")}</th><th>{t("رقم الفاتورة", "Invoice #")}</th><th>{t("الفواتير", "Invoices")}</th><th>{t("الدفعة", "Payment")}</th><th>{t("الرصيد", "Balance")}</th><th>{t("طريقة الدفع", "Payment Method")}</th></tr></thead>
             <tbody>
               {st.ledger.map((row: any) => (
                 <tr key={row.id} style={{ cursor: row.kind === "return" ? "default" : "pointer" }}
@@ -108,7 +108,7 @@ export default function CustomerDetail() {
                   <td className="tabular">{row.debit ? money(row.debit, false) : "—"}</td>
                   <td className="tabular">{row.credit ? money(row.credit, false) : "—"}</td>
                   <td className="tabular" style={{ fontWeight: 700 }}>{money(row.balance, false)}</td>
-                  <td className="tabular">{row.chequeNumber || "—"}</td>
+                  <td>{row.kind === "payment" ? t(row.method === "cash" ? "كاش" : row.method === "fawran" ? "فورا" : "بنك", row.method === "cash" ? "Cash" : row.method === "fawran" ? "Fawran" : "Bank") : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -267,10 +267,9 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
   const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
   const [amount, setAmount] = useState<number>(isEdit ? payment.credit : (defaultAmount || 0));
-  const [method, setMethod] = useState<string>(isEdit ? payment.method : "cash");
+  const [method, setMethod] = useState<string>(isEdit ? (payment.method === "cash" || payment.method === "fawran" ? payment.method : "bank") : "cash");
   const [date, setDate] = useState<string>(isEdit ? payment.date : today());
   const [note, setNote] = useState<string>(isEdit ? (payment.note || "") : "");
-  const [chequeNumber, setChequeNumber] = useState<string>(isEdit ? (payment.chequeNumber || "") : "");
   const [allocs, setAllocs] = useState<Record<string, number>>(
     isEdit && payment.allocations ? Object.fromEntries(payment.allocations.map((a: any) => [a.invoiceId, a.amount])) : {},
   );
@@ -307,8 +306,8 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
     setSaving(true);
     const allocations = Object.entries(allocs).filter(([, v]) => Number(v) > 0).map(([invoiceId, amt]) => ({ invoiceId: invoiceId as any, amount: Number(amt) }));
     try {
-      if (isEdit) await update({ id: payment.id, amount: Number(amount), method: method as any, date, chequeNumber, note: note || undefined, allocations, editedBy: user?.name });
-      else await create({ customerId, amount: Number(amount), method: method as any, date, chequeNumber: chequeNumber || undefined, note: note || undefined, allocations, createdBy: user?.name });
+      if (isEdit) await update({ id: payment.id, amount: Number(amount), method: method as any, date, note: note || undefined, allocations, editedBy: user?.name });
+      else await create({ customerId, amount: Number(amount), method: method as any, date, note: note || undefined, allocations, createdBy: user?.name });
       onClose();
     } finally { setSaving(false); }
   };
@@ -320,14 +319,11 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
           <div><label className="label">{t("المبلغ", "Amount")}</label><NumField autoFocus value={amount} onChange={setAmount} style={{ fontSize: 18, fontWeight: 800 }} /></div>
           <div><label className="label">{t("طريقة الدفع", "Method")}</label>
             <select className="field" value={method} onChange={(e) => setMethod(e.target.value)}>
-              <option value="cash">{t("نقدي", "Cash")}</option><option value="transfer">{t("تحويل", "Transfer")}</option><option value="card">{t("بطاقة", "Card")}</option>
+              <option value="cash">{t("كاش", "Cash")}</option><option value="fawran">{t("فورا", "Fawran")}</option><option value="bank">{t("بنك", "Bank")}</option>
             </select></div>
           <div><label className="label">{t("التاريخ", "Date")}</label><input className="field tabular" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
-          <div><label className="label">{t("رقم الشيك", "Cheque #")}</label><input className="field tabular" value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} /></div>
-          <div><label className="label">{t("ملاحظة", "Note")}</label><input className="field" value={note} onChange={(e) => setNote(e.target.value)} /></div>
-        </div>
+        <div><label className="label">{t("ملاحظة", "Note")}</label><input className="field" value={note} onChange={(e) => setNote(e.target.value)} /></div>
 
         {outstanding && outstanding.length > 0 && (
           <div style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 12 }}>

@@ -2,7 +2,10 @@ import { authQuery as query, authMutation as mutation } from "./auth";
 import { v } from "convex/values";
 import { round2, todayStr, logAction, recomputeBalance, recomputeInvoicePaid } from "./helpers";
 
-const method = v.union(v.literal("cash"), v.literal("transfer"), v.literal("card"));
+const method = v.union(
+  v.literal("cash"), v.literal("fawran"), v.literal("bank"),
+  v.literal("transfer"), v.literal("card"),
+);
 const allocations = v.array(v.object({ invoiceId: v.id("invoices"), amount: v.number() }));
 
 export const list = query({
@@ -30,7 +33,6 @@ export const create = mutation({
     date: v.optional(v.string()),
     method,
     allocations: v.optional(allocations),
-    chequeNumber: v.optional(v.string()),
     note: v.optional(v.string()),
     createdBy: v.optional(v.string()),
   },
@@ -45,7 +47,6 @@ export const create = mutation({
       date: todayStr(args.date),
       method: args.method,
       allocations: allocs.length ? allocs : undefined,
-      chequeNumber: args.chequeNumber,
       note: args.note,
       createdBy: args.createdBy,
       createdAt: Date.now(),
@@ -65,7 +66,6 @@ export const update = mutation({
     date: v.optional(v.string()),
     method: v.optional(method),
     allocations: v.optional(allocations),
-    chequeNumber: v.optional(v.string()),
     note: v.optional(v.string()),
     editedBy: v.optional(v.string()),
   },
@@ -82,7 +82,6 @@ export const update = mutation({
       method: args.method ?? p.method,
       note: args.note ?? p.note,
       allocations: newAllocs.length ? newAllocs : undefined,
-      chequeNumber: args.chequeNumber === undefined ? p.chequeNumber : (args.chequeNumber || undefined),
     });
     // أعد حساب المدفوع لكل الفواتير المتأثرة (القديمة + الجديدة)
     const affected = new Set<any>([...oldInvoices, ...newAllocs.map((a) => a.invoiceId)]);

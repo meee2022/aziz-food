@@ -376,7 +376,6 @@ export const statement = query({
         at: p.createdAt,
         id: p._id,
         method: p.method,
-        chequeNumber: p.chequeNumber ?? "",
         note: p.note ?? "",
         allocations: p.allocations ?? [],
         // أرقام الفواتير التي غطّتها هذه الدفعة (توزيعها)
