@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "../lib/authedConvex";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
@@ -285,17 +285,34 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
   const [allocs, setAllocs] = useState<Record<string, number>>(
     isEdit && payment.allocations ? Object.fromEntries(payment.allocations.map((a: any) => [a.invoiceId, a.amount])) : {},
   );
+  // تلقائي: يوزّع المبلغ على أقدم الفواتير أولًا أثناء الكتابة. أي تعديل يدوي يوقفه.
+  const [autoMode, setAutoMode] = useState<boolean>(!isEdit);
   const [saving, setSaving] = useState(false);
 
-  const toggle = (inv: any) => setAllocs((prev) => { const n = { ...prev }; if (inv._id in n) delete n[inv._id]; else n[inv._id] = inv.remaining; return n; });
-  const setAlloc = (id: string, v: number) => setAllocs((prev) => ({ ...prev, [id]: v }));
+  const distribute = (amt: number): Record<string, number> => {
+    let left = amt; const n: Record<string, number> = {};
+    for (const inv of (outstanding || [])) { if (left <= 0.001) break; const take = Math.min(left, inv.remaining); if (take > 0) { n[inv._id] = r2(take); left = r2(left - take); } }
+    return n;
+  };
+
+  // وزّع تلقائيًا كلما تغيّر المبلغ (ما دام في الوضع التلقائي)
+  useEffect(() => {
+    if (autoMode && outstanding) setAllocs(distribute(amount));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amount, autoMode, outstanding]);
+
+  const toggle = (inv: any) => { setAutoMode(false); setAllocs((prev) => { const n = { ...prev }; if (inv._id in n) delete n[inv._id]; else n[inv._id] = inv.remaining; return n; }); };
+  const setAlloc = (id: string, v: number) => { setAutoMode(false); setAllocs((prev) => ({ ...prev, [id]: v })); };
   const allocated = r2(Object.values(allocs).reduce((s, v) => s + (Number(v) || 0), 0));
 
-  const autoAllocate = () => {
-    let left = amount; const n: Record<string, number> = {};
-    for (const inv of (outstanding || [])) { if (left <= 0.001) break; const take = Math.min(left, inv.remaining); n[inv._id] = r2(take); left = r2(left - take); }
-    setAllocs(n);
-  };
+  const autoAllocate = () => { setAutoMode(true); setAllocs(distribute(amount)); };
+
+  // ملخّص السداد: قائمة الفواتير التي ستُسدَّد ومقدار كل منها (كامل/جزئي)
+  const paidSummary = useMemo(() =>
+    (outstanding || [])
+      .filter((inv: any) => Number(allocs[inv._id]) > 0)
+      .map((inv: any) => ({ number: inv.number, paid: r2(Number(allocs[inv._id])), remaining: inv.remaining, full: Number(allocs[inv._id]) >= inv.remaining - 0.01 })),
+    [outstanding, allocs]);
 
   const save = async () => {
     setSaving(true);
@@ -323,8 +340,10 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
         {outstanding && outstanding.length > 0 && (
           <div style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontWeight: 800, fontSize: 13 }}>{t("توزيع على الفواتير (اختياري)", "Allocate to invoices (optional)")}</span>
-              <button className="btn-ghost" style={{ padding: "4px 10px" }} onClick={autoAllocate}><Icon name="check" size={13} /> {t("توزيع تلقائي", "Auto")}</button>
+              <span style={{ fontWeight: 800, fontSize: 13 }}>{t("توزيع على الفواتير", "Allocate to invoices")}</span>
+              <button className={autoMode ? "btn-primary" : "btn-ghost"} style={{ padding: "4px 10px" }} onClick={autoAllocate}>
+                <Icon name="check" size={13} /> {t("توزيع تلقائي", "Auto")}{autoMode ? t(" ✓", " ✓") : ""}
+              </button>
             </div>
             <div style={{ maxHeight: 220, overflowY: "auto", display: "grid", gap: 6 }}>
               {outstanding.map((inv: any) => { const on = inv._id in allocs; return (
@@ -339,6 +358,30 @@ function PaymentModal({ customerId, payment, defaultAmount, onClose }: any) {
               <span className="text-muted">{t("الموزّع", "Allocated")}: <b className="tabular">{money(allocated, false)}</b></span>
               <span style={{ color: allocated > amount + 0.01 ? "var(--danger)" : "var(--muted)" }}>{t("غير موزّع", "Unallocated")}: <b className="tabular">{money(r2(amount - allocated), false)}</b></span>
             </div>
+          </div>
+        )}
+
+        {/* ملخّص واضح: هذه الدفعة تسدّد أي فواتير وبكم */}
+        {paidSummary.length > 0 && (
+          <div style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 12, background: "color-mix(in srgb,var(--accent) 8%,transparent)" }}>
+            <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 8 }}><Icon name="check" size={14} /> {t("هذه الدفعة تسدّد", "This payment settles")}</div>
+            <div style={{ display: "grid", gap: 5 }}>
+              {paidSummary.map((s: any) => (
+                <div key={s.number} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+                  <span className="pill badge-info" style={{ minWidth: 78, justifyContent: "center" }}>{s.number}</span>
+                  <b className="tabular">{money(s.paid, false)}</b>
+                  <span className={"pill " + (s.full ? "badge-success" : "badge-warning")} style={{ fontSize: 10.5 }}>
+                    {s.full ? t("سداد كامل", "Full") : t(`جزئي — يتبقّى ${money(r2(s.remaining - s.paid), false)}`, `Partial — ${money(r2(s.remaining - s.paid), false)} left`)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {r2(amount - allocated) > 0.01 && (
+              <div className="text-muted" style={{ fontSize: 11.5, marginTop: 8 }}>
+                {t(`ويتبقّى ${money(r2(amount - allocated), false)} من الدفعة غير موزّع (سيُخصم من الرصيد العام).`,
+                   `${money(r2(amount - allocated), false)} of the payment stays unallocated (applied to the overall balance).`)}
+              </div>
+            )}
           </div>
         )}
 
