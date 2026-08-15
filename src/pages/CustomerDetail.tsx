@@ -75,14 +75,14 @@ export default function CustomerDetail() {
       </div>
 
       {/* بطاقات ملخص */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 18 }}>
+      <div className="no-print" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 18 }}>
         <SummaryTile label={t("إجمالي الفواتير", "Total Invoiced")} value={money(st.totalInvoiced)} />
         <SummaryTile label={t("المدفوع", "Paid")} value={money(st.totalPaid)} good />
         <SummaryTile label={t("المتبقي", "Balance")} value={money(st.balance)} danger={st.balance > 0.01} />
         <SummaryTile label={t("عدد الفواتير", "Invoices")} value={num(st.invoiceCount, 0)} />
       </div>
 
-      {c.phone && <div style={{ marginBottom: 14 }}><span className="pill badge-muted"><Icon name="phone" size={13} /> {c.phone}</span>
+      {c.phone && <div className="no-print" style={{ marginBottom: 14 }}><span className="pill badge-muted"><Icon name="phone" size={13} /> {c.phone}</span>
         {c.creditLimit ? <span className="pill badge-info" style={{ marginInlineStart: 6 }}>{t("الحد الائتماني", "Credit")}: {money(c.creditLimit)}</span> : null}
         {c.contactPerson ? <span className="pill badge-muted" style={{ marginInlineStart: 6 }}>{c.contactPerson}</span> : null}
       </div>}
@@ -94,10 +94,19 @@ export default function CustomerDetail() {
         <button className={tab === "prices" ? "btn-primary" : "btn-ghost"} onClick={() => setTab("prices")}>{t("الأسعار الخاصة", "Special Prices")}</button>
       </div>
 
-      <style>{`@media print { .print-only { display: block !important; } .cd-print-head { display: block !important; } }`}</style>
+      <style>{`
+        @media print {
+          .print-only { display: block !important; }
+          .cd-print-head { display: block !important; }
+          .cd-print-ledger { display: block !important; }
+          .stmt-print th, .stmt-print td { border: 1px solid #333; padding: 5px 8px; height: 24px; }
+          .stmt-print th { background: #f0ece3; font-weight: 800; text-align: center; }
+        }
+      `}</style>
 
       {tab === "statement" ? (
-        <div className="card" style={{ padding: 0, overflowX: "auto" }}>
+       <>
+        <div className="card no-print" style={{ padding: 0, overflowX: "auto" }}>
           <table className="data-table statement-table">
             <thead><tr><th>{t("التاريخ", "Date")}</th><th>{t("رقم الفاتورة", "Invoice #")}</th><th>{t("الفواتير", "Invoices")}</th><th>{t("الدفعة", "Payment")}</th><th>{t("الرصيد", "Balance")}</th><th>{t("طريقة الدفع", "Payment Method")}</th></tr></thead>
             <tbody>
@@ -119,6 +128,48 @@ export default function CustomerDetail() {
           </table>
           {st.ledger.length === 0 && <Empty text={t("لا حركات", "No transactions")} icon="invoice" />}
         </div>
+
+        {/* تقرير الطباعة — بنفس تنسيق قالب مدم مي (يظهر عند الطباعة فقط) */}
+        <div className="print-only cd-print-ledger" style={{ display: "none" }}>
+          <table className="stmt-print" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr>
+                <th>{t("التاريخ", "Date")}</th>
+                <th>{t("رقم الفاتورة", "Invoice #")}</th>
+                <th>{t("الفواتير", "Invoices")}</th>
+                <th>{t("الدفعة", "Payment")}</th>
+                <th>{t("الرصيد", "Balance")}</th>
+                <th>{t("رقم الشيك", "Cheque #")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...st.ledger].reverse().map((row: any) => (
+                <tr key={"p" + row.id}>
+                  <td style={{ textAlign: "center" }}>{formatDate(row.date, lang)}</td>
+                  <td style={{ textAlign: "center" }}>
+                    {row.kind === "invoice" ? row.ref
+                      : row.kind === "return" ? t("مرتجع", "Return") + (row.ref !== "—" ? ` ${row.ref}` : "")
+                      : (row.coveredInvoices?.length ? row.coveredInvoices.map((c: any) => c.number).join("، ") : "")}
+                  </td>
+                  <td className="tabular" style={{ textAlign: "center" }}>{row.debit ? money(row.debit, false) : ""}</td>
+                  <td className="tabular" style={{ textAlign: "center" }}>{row.credit ? money(row.credit, false) : ""}</td>
+                  <td className="tabular" style={{ textAlign: "center", fontWeight: 700 }}>{money(row.balance, false)}</td>
+                  <td style={{ textAlign: "center" }}>{row.kind === "payment" ? (row.note || "") : ""}</td>
+                </tr>
+              ))}
+              {/* أسطر فارغة لملء الجدول (كالنموذج) */}
+              {Array.from({ length: Math.max(0, 4 - st.ledger.length) }).map((_, i) => (
+                <tr key={"e" + i}><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: 12.5, fontWeight: 700 }}>
+            <span>{t("إجمالي الفواتير", "Total Invoiced")}: {money(st.totalInvoiced, false)}</span>
+            <span>{t("المدفوع", "Paid")}: {money(st.totalPaid, false)}</span>
+            <span>{t("الرصيد المتبقي", "Balance Due")}: {money(st.balance, false)}</span>
+          </div>
+        </div>
+       </>
       ) : (
         <SpecialPrices customerId={cid} customers={customers ?? []} copyFrom={copyFrom} setCopyFrom={setCopyFrom} onCopy={async () => { if (copyFrom) { await copyPrices({ fromId: copyFrom as any, toId: cid }); setCopyFrom(""); } }} />
       )}
