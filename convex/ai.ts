@@ -31,6 +31,9 @@ export const parseOrder = action({
 
     const system =
       "أنت تحوّل طلب عميل لتاجر جملة خضار وفواكه إلى بنود منظّمة. المدخل نص عربي/إنجليزي أو صورة لطلب مكتوب بخط اليد أو مطبوع. " +
+      "عند وجود صورة لنموذج طلب مطبوع: افحص الصورة كاملة بدقة، واقرأ الكتابة اليدوية في خلايا NEW ORDER فقط، واربط كل كمية باسم الصنف المطبوع في الصف نفسه. " +
+      "تجاهل صفوف النموذج الفارغة وعلامات الصح والخطوط الممتدة خارج الجدول، لكن لا تعتبر النموذج كله فارغًا لمجرد أن معظم صفوفه فارغة. " +
+      "افحص نصفي الجدول الأيسر والأيمن، وكذلك أي أصناف مكتوبة يدويًا عند الحواف أو أسفل الجدول. ميّز pc/pce (قطعة) وkg وgm بدقة. " +
       "طابِق كل صنف مطلوب بأقرب صنف في الكتالوج المرفق (CATALOG: أعمدة مفصولة بـ tab = المعرّف، الاسم الإنجليزي، الاسم العربي، الوحدة). " +
       "أعد itemId من الكتالوج بالضبط؛ إن لم تجد تطابقًا جيدًا اجعله سلسلة فارغة \"\". " +
       "qty رقم: حوّل مثل '2 كرتونة' إلى 2، و'نص كيلو' إلى 0.5، و'500 جرام' إلى 0.5 لو الوحدة كيلو. " +
@@ -45,34 +48,28 @@ export const parseOrder = action({
         source: { type: "base64", media_type: args.imageMediaType || "image/jpeg", data: args.imageBase64 },
       });
     }
-    content.push({ type: "text", text: `${args.text ?? ""}\n\nCATALOG:\n${catalog}` });
-
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-opus-4-8",
-        max_tokens: 4096,
-        thinking: { type: "adaptive" },
-        output_config: { format: { type: "json_schema", schema: SCHEMA } },
-        system,
-        messages: [{ role: "user", content }],
-      }),
+    content.push({
+      type: "text",
+      text: args.imageBase64
+        ? `اقرأ كل الكميات المكتوبة يدويًا في صورة الطلب، خصوصًا عمود NEW ORDER في جانبي الجدول، ثم طابقها بالكتالوج.\n${args.text ?? ""}\n\nCATALOG:\n${catalog}`
+        : `${args.text ?? ""}\n\nCATALOG:\n${catalog}`,
     });
 
-    const data: any = await res.json();
-    if (!res.ok || data?.type === "error") {
-      throw new Error("الذكاء الاصطناعي: " + (data?.error?.message || `خطأ ${res.status}`));
-    }
-    if (data.stop_reason === "refusal") throw new Error("تعذّر تحليل الطلب (رُفض من نموذج الذكاء الاصطناعي).");
+    let lines = await requestLines(key, system, content);
 
-    const textOut = (data.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
-    const parsed = extractJson(textOut);
-    const lines = Array.isArray(parsed?.lines) ? parsed.lines : [];
+    // بعض نماذج الرؤية قد تفسّر نموذجًا مطبوعًا كثيفًا على أنه فارغ. أعد المحاولة
+    // فقط في هذه الحالة، بتوجيه بصري أكثر تحديدًا، بدل إظهار نتيجة مضللة للمستخدم.
+    if (args.imageBase64 && lines.length === 0) {
+      const retryContent = [...content];
+      retryContent[retryContent.length - 1] = {
+        type: "text",
+        text:
+          "المحاولة السابقة لم تجد بنودًا، لكن الصورة تحتوي كتابة زرقاء بخط اليد. كبّر الصورة ذهنيًا وامسح الصفوف واحدًا واحدًا من أعلى لأسفل في نصفي الجدول. " +
+          "استخرج كل خلية مكتوبة في NEW ORDER واربطها باسم الصف المطبوع المقابل. لا تُرجع lines فارغة ما دامت توجد كميات بخط اليد.\n\n" +
+          `CATALOG:\n${catalog}`,
+      };
+      lines = await requestLines(key, system, retryContent);
+    }
 
     const byId = new Map(items.map((i: any) => [i.itemId, i]));
     const matched: any[] = [];
@@ -118,4 +115,50 @@ function extractJson(s: string): any {
   const b = s.lastIndexOf("}");
   if (a >= 0 && b > a) { try { return JSON.parse(s.slice(a, b + 1)); } catch {} }
   return null;
+}
+
+async function requestLines(key: string, system: string, content: any[]): Promise<any[]> {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "claude-opus-4-8",
+      // حد مرتفع حتى لا ينقطع الرد عند الطلبات الكبيرة (أصناف كثيرة)؛ effort منخفض
+      // يقلّل توكِنات التفكير لأن المهمة استخلاص لا تفكير عميق، فيسرع ويمنع القطع.
+      max_tokens: 16000,
+      thinking: { type: "adaptive" },
+      output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
+      system,
+      messages: [{ role: "user", content }],
+    }),
+  });
+
+  const data: any = await res.json();
+  if (!res.ok || data?.type === "error") {
+    throw new Error("الذكاء الاصطناعي: " + (data?.error?.message || `خطأ ${res.status}`));
+  }
+  if (data.stop_reason === "refusal") throw new Error("تعذّر تحليل الطلب (رُفض من نموذج الذكاء الاصطناعي).");
+
+  const textOut = (data.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
+  const parsed = extractJson(textOut);
+  let lines = Array.isArray(parsed?.lines) ? parsed.lines : [];
+  // لو انقطع الرد (نادر بعد رفع الحد) أنقذ ما أمكن من البنود المكتملة
+  if (data.stop_reason === "max_tokens" || lines.length === 0) {
+    const salvaged = salvageLines(textOut);
+    if (salvaged.length > lines.length) lines = salvaged;
+  }
+  return lines;
+}
+
+/** استخراج كل كائن بند مكتمل من نص JSON حتى لو كان مقطوعًا/غير صالح ككل. */
+function salvageLines(s: string): any[] {
+  const out: any[] = [];
+  const re = /\{[^{}]*"itemId"[^{}]*\}/g;
+  const matches = s.match(re) || [];
+  for (const m of matches) { try { out.push(JSON.parse(m)); } catch {} }
+  return out;
 }
