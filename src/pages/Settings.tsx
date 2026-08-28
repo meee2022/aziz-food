@@ -98,6 +98,34 @@ export default function Settings() {
     <div className="animate-in">
       <PageHeader title={t("الإعدادات", "Settings")} />
 
+      {/* موديل الذكاء الاصطناعي لتحليل الطلبات */}
+      {user?.role === "admin" && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="section-title" style={{ marginBottom: 6 }}>{t("🤖 موديل الذكاء الاصطناعي (تحليل الطلبات)", "🤖 AI model (order parsing)")}</div>
+          <p className="text-muted" style={{ fontSize: 13, marginTop: 0 }}>
+            {t("اختر الموديل. الأرخص أولًا؛ لو لقيت التحليل مش دقيق — خصوصًا في الصور وخط اليد — ارفعه لموديل أعلى.",
+               "Pick the model. Cheapest first; if parsing is inaccurate — especially images/handwriting — move up.")}
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {[
+              { id: "claude-haiku-4-5", ar: "هايكو — الأرخص", en: "Haiku — cheapest", hint: t("للنصوص والإكسيل والصور الواضحة", "text, Excel, clear photos") },
+              { id: "claude-sonnet-5", ar: "سونيت — متوازن", en: "Sonnet — balanced", hint: t("دقة أعلى للصور وخط اليد", "better images/handwriting") },
+              { id: "claude-opus-4-8", ar: "أوبس — الأدق", en: "Opus — most accurate", hint: t("الأغلى", "priciest") },
+            ].map((m) => {
+              const cur = (settings as any).aiModel || "claude-haiku-4-5";
+              const on = cur === m.id;
+              return (
+                <button key={m.id} className={on ? "btn-primary" : "btn-ghost"} style={{ flexDirection: "column", alignItems: "flex-start", gap: 2, padding: "8px 14px", textAlign: "start" }}
+                  onClick={() => setSetting({ key: "aiModel", value: m.id })}>
+                  <span style={{ fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 5 }}>{on && <Icon name="check" size={13} />} {t(m.ar, m.en)}</span>
+                  <span style={{ fontSize: 11, opacity: 0.85 }}>{m.hint}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* حسابي — تغيير كلمة السر */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="section-title" style={{ marginBottom: 6 }}>{t("حسابي — تغيير كلمة السر", "My account — change password")}</div>

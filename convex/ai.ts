@@ -23,6 +23,10 @@ export const parseOrder = action({
     const key = (globalThis as any).process?.env?.ANTHROPIC_API_KEY?.replace(/[^\x21-\x7E]/g, "");
     if (!key) throw new Error("لم يتم ضبط مفتاح الذكاء الاصطناعي (ANTHROPIC_API_KEY) على الخادم بعد.");
 
+    // الموديل المختار من الإعدادات (يختاره المالك من الشاشة)، وإلا متغيّر البيئة، وإلا الأرخص.
+    const settings: any = await ctx.runQuery(api.settings.all, { token: args.token } as any);
+    const model = normalizeModel(settings?.aiModel) || (globalThis as any).process?.env?.AI_MODEL?.trim() || "claude-haiku-4-5";
+
     // كتالوج الأصناف النشطة (المُعرّف + الاسمان + الوحدة)
     const items = await ctx.runQuery(api.customers.priceListFor, { token: args.token } as any);
     const catalog = items
@@ -55,7 +59,7 @@ export const parseOrder = action({
         : `${args.text ?? ""}\n\nCATALOG:\n${catalog}`,
     });
 
-    let lines = await requestLines(key, system, content);
+    let lines = await requestLines(key, model, system, content);
 
     // بعض نماذج الرؤية قد تفسّر نموذجًا مطبوعًا كثيفًا على أنه فارغ. أعد المحاولة
     // فقط في هذه الحالة، بتوجيه بصري أكثر تحديدًا، بدل إظهار نتيجة مضللة للمستخدم.
@@ -68,7 +72,7 @@ export const parseOrder = action({
           "استخرج كل خلية مكتوبة في NEW ORDER واربطها باسم الصف المطبوع المقابل. لا تُرجع lines فارغة ما دامت توجد كميات بخط اليد.\n\n" +
           `CATALOG:\n${catalog}`,
       };
-      lines = await requestLines(key, system, retryContent);
+      lines = await requestLines(key, model, system, retryContent);
     }
 
     const byId = new Map(items.map((i: any) => [i.itemId, i]));
@@ -117,7 +121,7 @@ function extractJson(s: string): any {
   return null;
 }
 
-async function requestLines(key: string, system: string, content: any[]): Promise<any[]> {
+async function requestLines(key: string, model: string, system: string, content: any[]): Promise<any[]> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -125,7 +129,7 @@ async function requestLines(key: string, system: string, content: any[]): Promis
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
     },
-    body: JSON.stringify(buildBody(system, content)),
+    body: JSON.stringify(buildBody(model, system, content)),
   });
 
   const data: any = await res.json();
@@ -149,8 +153,14 @@ async function requestLines(key: string, system: string, content: any[]): Promis
  * جسم الطلب حسب الموديل. الافتراضي Haiku (الأرخص) — لا يقبل thinking/effort.
  * لتغيير الموديل: اضبط متغيّر البيئة AI_MODEL على Convex (مثلاً claude-sonnet-5 أو claude-opus-4-8).
  */
-function buildBody(system: string, content: any[]): any {
-  const model = (globalThis as any).process?.env?.AI_MODEL?.trim() || "claude-haiku-4-5";
+const ALLOWED_MODELS = ["claude-haiku-4-5", "claude-sonnet-5", "claude-opus-4-8"];
+/** يقبل فقط الموديلات المسموح بها (يمنع قيمًا غلط من الإعدادات). */
+function normalizeModel(v: any): string | null {
+  const s = String(v ?? "").trim();
+  return ALLOWED_MODELS.includes(s) ? s : null;
+}
+
+function buildBody(model: string, system: string, content: any[]): any {
   const modern = /opus-4-[678]|sonnet-5|fable-5/.test(model); // موديلات تقبل adaptive + effort
   const body: any = {
     model,
