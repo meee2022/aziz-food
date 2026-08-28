@@ -125,16 +125,7 @@ async function requestLines(key: string, system: string, content: any[]): Promis
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
     },
-    body: JSON.stringify({
-      model: "claude-opus-4-8",
-      // حد مرتفع حتى لا ينقطع الرد عند الطلبات الكبيرة (أصناف كثيرة)؛ effort منخفض
-      // يقلّل توكِنات التفكير لأن المهمة استخلاص لا تفكير عميق، فيسرع ويمنع القطع.
-      max_tokens: 16000,
-      thinking: { type: "adaptive" },
-      output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
-      system,
-      messages: [{ role: "user", content }],
-    }),
+    body: JSON.stringify(buildBody(system, content)),
   });
 
   const data: any = await res.json();
@@ -152,6 +143,27 @@ async function requestLines(key: string, system: string, content: any[]): Promis
     if (salvaged.length > lines.length) lines = salvaged;
   }
   return lines;
+}
+
+/**
+ * جسم الطلب حسب الموديل. الافتراضي Haiku (الأرخص) — لا يقبل thinking/effort.
+ * لتغيير الموديل: اضبط متغيّر البيئة AI_MODEL على Convex (مثلاً claude-sonnet-5 أو claude-opus-4-8).
+ */
+function buildBody(system: string, content: any[]): any {
+  const model = (globalThis as any).process?.env?.AI_MODEL?.trim() || "claude-haiku-4-5";
+  const modern = /opus-4-[678]|sonnet-5|fable-5/.test(model); // موديلات تقبل adaptive + effort
+  const body: any = {
+    model,
+    max_tokens: modern ? 16000 : 8000,
+    system,
+    messages: [{ role: "user", content }],
+    output_config: { format: { type: "json_schema", schema: SCHEMA } },
+  };
+  if (modern) {
+    body.thinking = { type: "adaptive" };
+    body.output_config.effort = "low";
+  }
+  return body;
 }
 
 /** استخراج كل كائن بند مكتمل من نص JSON حتى لو كان مقطوعًا/غير صالح ككل. */
