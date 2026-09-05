@@ -22,9 +22,31 @@ const esc = (v: any) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&l
 export async function elementToPdfBlob(el: HTMLElement): Promise<Blob> {
   const html2canvas = (await import("html2canvas-pro")).default;
   const { jsPDF } = await import("jspdf");
+  // تأكد أن خطوط الواجهة (Cairo/Inter) محمّلة قبل الرسم وإلا رُسم النص بخط النظام الافتراضي
+  try { await (document as any).fonts?.ready; } catch {}
+  // متغيّرات الألوان (--primary وغيرها) معرّفة في ملف CSS الرئيسي؛ ننسخها صراحةً إلى النسخة
+  // المستنسخة حتى لا تضيع إن تأخر تحميل الملف داخل إطار الالتقاط (يظهر الملف أبيض بلا ألوان).
+  const rootStyle = getComputedStyle(document.documentElement);
+  const rootVars: string[] = [];
+  for (const sheet of Array.from(document.styleSheets)) {
+    let rules: CSSRuleList | undefined;
+    try { rules = sheet.cssRules; } catch { continue; }
+    for (const r of Array.from(rules ?? [])) {
+      const st = (r as CSSStyleRule).style;
+      if (!st || !(r as CSSStyleRule).selectorText?.includes(":root")) continue;
+      for (const name of Array.from(st)) if (name.startsWith("--")) rootVars.push(`${name}:${rootStyle.getPropertyValue(name).trim()}`);
+    }
+  }
+  const fontFamily = getComputedStyle(el).fontFamily;
   const canvas = await html2canvas(el, {
     scale: 2, backgroundColor: "#ffffff", useCORS: true,
     ignoreElements: (e) => (e as HTMLElement).classList?.contains("no-print"), // لا تلتقط كتلة الربح الداخلية
+    onclone: (doc) => {
+      doc.documentElement.style.cssText += ";" + rootVars.join(";");
+      const target = doc.querySelector<HTMLElement>(`.${Array.from(el.classList).join(".")}`) ?? doc.body;
+      target.style.fontFamily = fontFamily;
+      doc.body.style.fontFamily = fontFamily;
+    },
   });
   const img = canvas.toDataURL("image/jpeg", 0.92);
   const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });

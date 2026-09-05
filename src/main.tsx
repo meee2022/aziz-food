@@ -7,6 +7,9 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { LangProvider } from "./lib/i18n";
 import { AuthProvider } from "./lib/auth";
 import "./index.css";
+import { startAutoUpdate } from "./lib/autoUpdate";
+
+startAutoUpdate(); // يعيد تحميل التطبيق تلقائيًا عند نشر نسخة جديدة
 
 const convexUrl = import.meta.env.VITE_CONVEX_URL as string;
 const convex = new ConvexReactClient(convexUrl);

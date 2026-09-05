@@ -77,6 +77,22 @@ export default function InvoiceView() {
     } finally { setSharing(false); }
   };
 
+  // طباعة: نفتح الـ PDF الملتقط (بألوانه) في تبويب جديد ويطبع المستخدم منه — طباعة المتصفح
+  // المباشرة كانت تُسقط الألوان/الخطوط على بعض الأجهزة. نفتح التبويب قبل الانتظار حتى لا يحجبه المتصفح.
+  const printInvoice = async () => {
+    if (!sheetRef.current) return;
+    const win = window.open("", "_blank");
+    setSharing(true);
+    try {
+      const blob = await elementToPdfBlob(sheetRef.current);
+      const url = URL.createObjectURL(blob);
+      if (win) win.location.href = url; else window.open(url, "_blank");
+    } catch (e) {
+      win?.close();
+      alert(t("تعذّر تجهيز الفاتورة للطباعة", "Could not prepare the invoice for printing"));
+    } finally { setSharing(false); }
+  };
+
   const whatsapp = () => {
     const lines = inv.lines.map((l: any, i: number) => `${i + 1}. ${l.name} ×${num(l.qty)} ${l.unit} = ${money(l.qty * l.unitPrice)}`).join("\n");
     const msg = [
@@ -98,7 +114,7 @@ export default function InvoiceView() {
         <div style={{ flex: 1 }} />
         {inv.status !== "cancelled" && <Link to={`/invoice/${inv._id}/edit`} className="btn-ghost"><Icon name="edit" size={16} /> {t("تعديل", "Edit")}</Link>}
         {inv.status === "draft" && <button className="btn-primary" onClick={() => approve({ id: inv._id, approvedBy: user?.name })}><Icon name="check" size={16} /> {t("اعتماد", "Approve")}</button>}
-        <button className="btn-ghost" onClick={() => window.print()}><Icon name="print" size={16} /> {t("طباعة", "Print")}</button>
+        <button className="btn-ghost" disabled={sharing} onClick={printInvoice}><Icon name="print" size={16} /> {t("طباعة", "Print")}</button>
         <button className="btn-secondary" disabled={sharing} onClick={savePdf}><Icon name="download" size={16} /> {sharing ? "…" : "PDF"}</button>
         <button className="btn-secondary" onClick={() => invoiceToExcel(inv, s)}><Icon name="download" size={16} /> Excel</button>
         <button className="btn-secondary" onClick={() => invoiceToWord(inv, s)}><Icon name="download" size={16} /> Word</button>
