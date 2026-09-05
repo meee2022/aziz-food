@@ -18,12 +18,57 @@ const esc = (v: any) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&l
 
 /* ─────────────── PDF حقيقي + مشاركة (واتساب على الموبايل) ─────────────── */
 
+/**
+ * قواعد @font-face لخطوط التطبيق (Cairo/Inter) مع ملفاتها مضمّنة كـ data URI.
+ * لماذا: html2canvas يقيس مواضع الكلمات داخل نسخة مخفية (iframe) ثم يرسمها على canvas في
+ * الصفحة الأصلية. لو لم يكن الخط محمّلًا في النسخة المخفية وقت القياس (جهاز بلا كاش، أو بلا
+ * Cairo مثبّت في النظام) قيست الكلمات بخط بديل ورُسمت بالخط الحقيقي فتراكبت الكلمات العربية
+ * وظهرت فراغات في الإنجليزية. تضمين الملف نفسه داخل النسخة يجعل التحميل فوريًا ومضمونًا.
+ * نقرأ القواعد من ملف CSS التطبيق نفسه (src/fonts.css — نفس الأصل) فلا نكرّر نطاقات الأحرف هنا.
+ */
+let captureFontCss: Promise<string> | null = null;
+function fontFaceCssWithDataUris(): Promise<string> {
+  if (captureFontCss) return captureFontCss;
+  captureFontCss = (async () => {
+    const faces: { family: string; weight: string; style: string; range: string; url: string }[] = [];
+    for (const sheet of Array.from(document.styleSheets)) {
+      let rules: CSSRuleList | undefined;
+      try { rules = sheet.cssRules; } catch { continue; } // أوراق خارجية لا تُقرأ — نتجاهلها
+      for (const r of Array.from(rules ?? [])) {
+        if (!(r instanceof CSSFontFaceRule)) continue;
+        const st = r.style;
+        const family = st.getPropertyValue("font-family").replace(/["']/g, "").trim();
+        if (!/^(Cairo|Inter)$/i.test(family)) continue;
+        const m = st.getPropertyValue("src").match(/url\(["']?([^"')]+)["']?\)/);
+        if (!m) continue;
+        faces.push({
+          family, url: m[1],
+          weight: st.getPropertyValue("font-weight") || "400",
+          style: st.getPropertyValue("font-style") || "normal",
+          range: st.getPropertyValue("unicode-range"),
+        });
+      }
+    }
+    const rules = await Promise.all(faces.map(async (f) => {
+      const res = await fetch(f.url);
+      if (!res.ok) return "";
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      return `@font-face{font-family:"${f.family}";font-style:${f.style};font-weight:${f.weight};font-display:block;` +
+        `src:url(data:font/woff2;base64,${btoa(bin)}) format("woff2");${f.range ? `unicode-range:${f.range};` : ""}}`;
+    }));
+    return rules.join("\n");
+  })().catch(() => { captureFontCss = null; return ""; });
+  return captureFontCss;
+}
+
 /** يصوّر عنصر ورقة الفاتورة إلى ملف PDF (A4) — يتعامل مع العربي لأنه يلتقط ما يرسمه المتصفح. */
 export async function elementToPdfBlob(el: HTMLElement): Promise<Blob> {
   const html2canvas = (await import("html2canvas-pro")).default;
   const { jsPDF } = await import("jspdf");
   // تأكد أن خطوط الواجهة (Cairo/Inter) محمّلة قبل الرسم وإلا رُسم النص بخط النظام الافتراضي
   try { await (document as any).fonts?.ready; } catch {}
+  const fontCss = await fontFaceCssWithDataUris();
   // متغيّرات الألوان (--primary وغيرها) معرّفة في ملف CSS الرئيسي؛ ننسخها صراحةً إلى النسخة
   // المستنسخة حتى لا تضيع إن تأخر تحميل الملف داخل إطار الالتقاط (يظهر الملف أبيض بلا ألوان).
   const rootStyle = getComputedStyle(document.documentElement);
@@ -46,12 +91,16 @@ export async function elementToPdfBlob(el: HTMLElement): Promise<Blob> {
       const target = doc.querySelector<HTMLElement>(`.${Array.from(el.classList).join(".")}`) ?? doc.body;
       target.style.fontFamily = fontFamily;
       doc.body.style.fontFamily = fontFamily;
-      // الخطوط (Cairo/Inter) تُحمَّل في النسخة المستنسخة بشكل غير متزامن (display=swap)، فلو قيست
-      // مواضع الكلمات بخط بديل ثم رُسمت بالخط الحقيقي تراكبت الكلمات العربية وظهرت فراغات غريبة.
-      // نجبر النسخة على تحميل نفس الخطوط المحمّلة في الصفحة وننتظرها قبل الرسم.
+      // الخطوط مضمّنة كـ data URI (انظر fontFaceCssWithDataUris) — نحقنها آخر <head> لتغلب القواعد
+      // المنسوخة، ثم نحمّل كل وجه خط Cairo/Inter في النسخة فعليًا وننتظره قبل أن يقيس html2canvas أي نص.
       try {
-        const loaded = Array.from((document as any).fonts as Iterable<FontFace>).filter((f) => f.status === "loaded");
-        await Promise.all(loaded.map((f) => (doc as any).fonts.load(`${f.style} ${f.weight} 16px "${f.family}"`).catch(() => null)));
+        if (fontCss) {
+          const style = doc.createElement("style");
+          style.textContent = fontCss;
+          doc.head.appendChild(style);
+        }
+        const faces = Array.from((doc as any).fonts as Iterable<FontFace>).filter((f) => /^(Cairo|Inter)$/i.test(f.family.replace(/["']/g, "")));
+        await Promise.all(faces.map((f) => f.load().catch(() => null)));
         await (doc as any).fonts.ready;
       } catch {}
       // html2canvas يرسم كل كلمة على حدة ويخطئ في مواضع الكلمات العربية (RTL) فتتراكب.
