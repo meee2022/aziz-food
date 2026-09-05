@@ -8,6 +8,8 @@
 declare const __BUILD_ID__: string;
 
 const CURRENT = typeof __BUILD_ID__ === "string" ? __BUILD_ID__ : "dev";
+/** رقم الإصدار الحالي (يُعرض في الإعدادات ليعرف المستخدم أي نسخة يشغّل). */
+export const BUILD_ID = CURRENT;
 let pending = false;
 
 /** لا نعيد التحميل والمستخدم في منتصف كتابة (فاتورة جديدة/تعديل أو حقل مُركّز عليه). */

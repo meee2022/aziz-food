@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAction } from "convex/react";
 import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "../lib/authedConvex";
 import { api } from "../../convex/_generated/api";
+import { BUILD_ID } from "../lib/autoUpdate";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { PageHeader, Icon, Modal, Spinner, normalizeNum } from "../components/ui";
@@ -336,6 +337,11 @@ export default function Settings() {
           alert(cleanErr(e) || t("تعذّر الحفظ", "Could not save"));
         }
       }} />}
+
+      {/* رقم الإصدار — يتحدّث تلقائيًا مع كل نشر؛ مفيد للتأكد أن المتصفح يشغّل آخر نسخة */}
+      <div className="text-muted" style={{ textAlign: "center", fontSize: 11, marginTop: 24, direction: "ltr" }}>
+        {t("الإصدار", "Version")} {BUILD_ID}
+      </div>
     </div>
   );
 }
