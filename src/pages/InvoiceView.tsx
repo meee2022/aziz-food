@@ -263,7 +263,8 @@ function MetaRow({ labelAr, labelEn, value, strong }: { labelAr: string; labelEn
 function ThCell({ ar, en, w }: { ar: string; en: string; w?: string }) {
   return (
     <th style={{ width: w, textAlign: "center", fontSize: 11, fontWeight: 800, lineHeight: 1.3 }}>
-      <div>{en}</div><div style={{ fontSize: 10.5, opacity: .9 }}>{ar}</div>
+      {/* dir=ltr: يمنع قلب الأقواس "(Qr)" عند التقاط الفاتورة كصورة/PDF */}
+      <div dir="ltr">{en}</div><div style={{ fontSize: 10.5, opacity: .9 }}>{ar}</div>
     </th>
   );
 }

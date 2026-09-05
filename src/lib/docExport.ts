@@ -46,6 +46,14 @@ export async function elementToPdfBlob(el: HTMLElement): Promise<Blob> {
       const target = doc.querySelector<HTMLElement>(`.${Array.from(el.classList).join(".")}`) ?? doc.body;
       target.style.fontFamily = fontFamily;
       doc.body.style.fontFamily = fontFamily;
+      // html2canvas يرسم كل كلمة على حدة ويخطئ في مواضع الكلمات العربية (RTL) فتتراكب.
+      // نربط كلمات كل نص عربي بمسافة غير فاصلة (NBSP) فتُرسم الجملة كوحدة واحدة — في النسخة الملتقطة فقط.
+      const walker = doc.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+      const arabic = /[؀-ۿ]/;
+      let n: Node | null;
+      while ((n = walker.nextNode())) {
+        if (arabic.test(n.textContent ?? "")) n.textContent = (n.textContent ?? "").replace(/ +/g, " ");
+      }
     },
   });
   const img = canvas.toDataURL("image/jpeg", 0.92);
@@ -55,7 +63,15 @@ export async function elementToPdfBlob(el: HTMLElement): Promise<Blob> {
   const pageH = pdf.internal.pageSize.getHeight();
   const availW = pageW - margin * 2;
   const availH = pageH - margin * 2;
-  const imgH = (canvas.height * availW) / canvas.width;
+  let imgH = (canvas.height * availW) / canvas.width;
+
+  // لو تجاوزت الصفحة بقليل (حتى 60%) نصغّرها لتدخل في صفحة واحدة (كما كانت الطباعة تفعل)
+  if (imgH > availH && imgH <= availH * 1.6) {
+    const k = availH / imgH;
+    const w = availW * k;
+    pdf.addImage(img, "JPEG", margin + (availW - w) / 2, margin, w, availH);
+    return pdf.output("blob");
+  }
 
   // صفحة واحدة إن وسِعت، وإلا نقسّم الصورة على عدة صفحات
   pdf.addImage(img, "JPEG", margin, margin, availW, imgH);
