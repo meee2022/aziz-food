@@ -5,7 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, num, formatDate, formatDateTime, amountInWordsEn, waPhone } from "../lib/format";
-import { invoiceToWord, invoiceToExcel, elementToPdfBlob, sharePdf } from "../lib/docExport";
+import { invoiceToWord, invoiceToExcel, elementToPdfBlob, sharePdf, downloadPdf } from "../lib/docExport";
 import { Icon, Spinner, Empty } from "../components/ui";
 
 export default function InvoiceView() {
@@ -64,12 +64,17 @@ export default function InvoiceView() {
     } finally { setSharing(false); }
   };
 
-  // حفظ الفاتورة كـ PDF عبر طباعة المتصفح، مع تسمية الملف برقم الفاتورة
-  const savePdf = () => {
-    const prev = document.title;
-    document.title = `${nameEn.replace(/\s+/g, "-")}-${inv.number}`;
-    window.print();
-    setTimeout(() => (document.title = prev), 500);
+  // حفظ الفاتورة كـ PDF: نصوّر ورقة الفاتورة كما تظهر على الشاشة (بألوانها) وننزّلها مباشرة.
+  // (طباعة المتصفح كانت تُسقط ألوان الخلفيات افتراضيًا فيخرج الملف أبيض.)
+  const savePdf = async () => {
+    if (!sheetRef.current) return;
+    setSharing(true);
+    try {
+      const blob = await elementToPdfBlob(sheetRef.current);
+      downloadPdf(blob, `${nameEn.replace(/\s+/g, "-")}-${inv.number}.pdf`);
+    } catch (e) {
+      alert(t("تعذّر توليد ملف الـ PDF", "Could not generate the PDF"));
+    } finally { setSharing(false); }
   };
 
   const whatsapp = () => {
@@ -94,7 +99,7 @@ export default function InvoiceView() {
         {inv.status !== "cancelled" && <Link to={`/invoice/${inv._id}/edit`} className="btn-ghost"><Icon name="edit" size={16} /> {t("تعديل", "Edit")}</Link>}
         {inv.status === "draft" && <button className="btn-primary" onClick={() => approve({ id: inv._id, approvedBy: user?.name })}><Icon name="check" size={16} /> {t("اعتماد", "Approve")}</button>}
         <button className="btn-ghost" onClick={() => window.print()}><Icon name="print" size={16} /> {t("طباعة", "Print")}</button>
-        <button className="btn-secondary" onClick={savePdf}><Icon name="download" size={16} /> PDF</button>
+        <button className="btn-secondary" disabled={sharing} onClick={savePdf}><Icon name="download" size={16} /> {sharing ? "…" : "PDF"}</button>
         <button className="btn-secondary" onClick={() => invoiceToExcel(inv, s)}><Icon name="download" size={16} /> Excel</button>
         <button className="btn-secondary" onClick={() => invoiceToWord(inv, s)}><Icon name="download" size={16} /> Word</button>
         <button className="btn-primary" disabled={sharing} onClick={sharePdfInvoice}>

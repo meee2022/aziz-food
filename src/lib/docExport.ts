@@ -1,5 +1,10 @@
 import { num, money, amountInWordsEn } from "./format";
 
+/** تنزيل ملف PDF جاهز مباشرةً (بدون قائمة المشاركة). */
+export function downloadPdf(blob: Blob, filename: string) {
+  download(blob, filename, "application/pdf");
+}
+
 /** تنزيل نص/بيانات كملف. */
 function download(content: BlobPart, filename: string, mime: string) {
   const blob = new Blob([content], { type: mime });
