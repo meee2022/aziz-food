@@ -1,11 +1,11 @@
-import { Fragment, useState, useEffect, useMemo } from "react";
+import { Fragment, useState, useEffect, useMemo, useRef, forwardRef } from "react";
 import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "../lib/authedConvex";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, num, formatDate, today, waPhone } from "../lib/format";
-import { statementToWord, statementToExcel } from "../lib/docExport";
+import { statementToWord, statementToExcel, elementToPdfBlob, sharePdf } from "../lib/docExport";
 import { PageHeader, Icon, Modal, Spinner, Empty, NumField, parseNum, normalizeNum } from "../components/ui";
 import { CUSTOMER_TYPES } from "./Customers";
 import { useUnits, parseCustomUnits, BASE_UNITS } from "../lib/units";
@@ -59,8 +59,8 @@ export default function CustomerDetail() {
           </>} />
       </div>
 
-      {/* ترويسة الطباعة فقط: اسم الشركة + العميل + التاريخ */}
-      <div className="print-only cd-print-head" style={{ display: "none", marginBottom: 12, borderBottom: "2px solid var(--primary)", paddingBottom: 8 }}>
+      {/* ترويسة الطباعة فقط: اسم الشركة + العميل + التاريخ (كشف الحساب؛ قائمة الأسعار لها ورقتها الخاصة) */}
+      {tab === "statement" && <div className="print-only cd-print-head" style={{ display: "none", marginBottom: 12, borderBottom: "2px solid var(--primary)", paddingBottom: 8 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 900, color: "#0a7c3f" }}>{settings?.companyName || "مدم مي للتجارة"}</div>
@@ -72,7 +72,7 @@ export default function CustomerDetail() {
             <div className="text-muted" style={{ fontSize: 11 }}>{formatDate(today(), lang)}</div>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* بطاقات ملخص */}
       <div className="no-print" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 18 }}>
@@ -101,6 +101,9 @@ export default function CustomerDetail() {
           .cd-print-ledger { display: block !important; }
           .stmt-print th, .stmt-print td { border: 1px solid #333; padding: 5px 8px; height: 24px; }
           .stmt-print th { background: #f0ece3; font-weight: 800; text-align: center; }
+          /* ورقة قائمة الأسعار: خارج الشاشة عادةً (لالتقاط PDF)، وتصبح هي الصفحة عند الطباعة */
+          .price-sheet { position: static !important; inset: auto !important; width: 100% !important; }
+          .price-sheet th, .price-sheet td { border: 1px solid #333; }
         }
       `}</style>
 
@@ -171,7 +174,7 @@ export default function CustomerDetail() {
         </div>
        </>
       ) : (
-        <SpecialPrices customerId={cid} customers={customers ?? []} copyFrom={copyFrom} setCopyFrom={setCopyFrom} onCopy={async () => { if (copyFrom) { await copyPrices({ fromId: copyFrom as any, toId: cid }); setCopyFrom(""); } }} />
+        <SpecialPrices customerId={cid} customer={c} customers={customers ?? []} copyFrom={copyFrom} setCopyFrom={setCopyFrom} onCopy={async () => { if (copyFrom) { await copyPrices({ fromId: copyFrom as any, toId: cid }); setCopyFrom(""); } }} />
       )}
 
       {payOpen && <PaymentModal customerId={cid} onClose={() => setPayOpen(false)} />}
@@ -475,8 +478,76 @@ function PaymentModal({ customerId, payment, onClose }: any) {
   );
 }
 
-function SpecialPrices({ customerId, customers, copyFrom, setCopyFrom, onCopy }: any) {
+/**
+ * ورقة قائمة أسعار العميل (A4). على الشاشة تُرسم خارج نطاق الرؤية حتى يلتقطها html2canvas،
+ * وعند الطباعة تصبح هي الصفحة (انظر CSS .price-sheet في الأعلى).
+ */
+const PriceSheet = forwardRef<HTMLDivElement, any>(function PriceSheet({ customer, settings, lang, t, rows }, ref) {
+  const nameAr = settings.companyName || "مدم مي للتجارة";
+  const nameEn = settings.companyNameEn || "MADAME TRADING";
+  const cr = settings.cr || "147672", phone = settings.phone || "55239250";
+  const cell: any = { padding: "6px 10px", border: "1px solid #333", fontSize: 12 };
+  return (
+    <div ref={ref} className="price-sheet" dir={lang === "ar" ? "rtl" : "ltr"}
+      style={{ position: "absolute", insetInlineStart: -10000, top: 0, width: 794, background: "#fff", color: "#111", padding: "28px 32px", fontFamily: "inherit" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #5c1523", paddingBottom: 10, marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: "#0a7c3f" }}>{nameAr}</div>
+          <div style={{ fontSize: 12, color: "#0a7c3f", fontFamily: "Inter, sans-serif" }}>{nameEn}</div>
+          <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>{t("س.ت", "CR")}: {cr} · {t("جوال", "Mobile")}: {phone}</div>
+        </div>
+        <div style={{ textAlign: "end" }}>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>{t("قائمة الأسعار", "Price List")}</div>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{customer?.name}{customer?.nameEn ? ` — ${customer.nameEn}` : ""}</div>
+          <div style={{ fontSize: 11, color: "#555" }}>{formatDate(today(), lang)}</div>
+        </div>
+      </div>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ background: "#f0ece3" }}>
+            <th style={{ ...cell, width: 36, textAlign: "center" }}>#</th>
+            <th style={{ ...cell, textAlign: "start" }}>{t("الصنف", "Item")}</th>
+            <th style={{ ...cell, textAlign: "start", fontFamily: "Inter, sans-serif" }}>Item</th>
+            <th style={{ ...cell, width: 90, textAlign: "center" }}>{t("الوحدة", "Unit")}</th>
+            <th style={{ ...cell, width: 110, textAlign: "center" }}>{t("السعر (ر.ق)", "Price (QAR)")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p: any, i: number) => (
+            <tr key={p.itemId} style={{ background: i % 2 ? "#faf8f4" : "#fff" }}>
+              <td style={{ ...cell, textAlign: "center", color: "#777" }}>{i + 1}</td>
+              <td style={{ ...cell, fontWeight: 700 }}>{p.nameAr ?? p.name}</td>
+              <td style={{ ...cell, fontFamily: "Inter, sans-serif", direction: "ltr", textAlign: "start" }}>{p.name}</td>
+              <td style={{ ...cell, textAlign: "center", fontFamily: "Inter, sans-serif" }}>{p.unit}</td>
+              <td style={{ ...cell, textAlign: "center", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{money(p.sell, false)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ marginTop: 12, fontSize: 11, color: "#555", display: "flex", justifyContent: "space-between" }}>
+        <span>{t(`عدد الأصناف: ${rows.length}`, `Items: ${rows.length}`)}</span>
+        <span>{t("الأسعار بالريال القطري وقابلة للتغيير حسب السوق.", "Prices in QAR and subject to market change.")}</span>
+      </div>
+    </div>
+  );
+});
+
+function SpecialPrices({ customerId, customer, customers, copyFrom, setCopyFrom, onCopy }: any) {
   const t = useT(); const { lang } = useLang();
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  /** تصدير ورقة الأسعار إلى PDF ومشاركتها (واتساب على الموبايل) أو تنزيلها. */
+  const exportPdf = async () => {
+    if (!sheetRef.current) return;
+    setPdfBusy(true);
+    try {
+      const blob = await elementToPdfBlob(sheetRef.current);
+      const name = `Prices-${String(customer?.name ?? "").trim().replace(/\s+/g, "-")}-${today()}.pdf`;
+      await sharePdf(blob, name, { title: t("قائمة الأسعار", "Price list"), text: customer?.name });
+    } catch (e: any) { alert(t("تعذّر إنشاء PDF: ", "PDF failed: ") + (e?.message ?? e)); }
+    finally { setPdfBusy(false); }
+  };
   const prices = useQuery(api.customers.priceListFor, { customerId, date: today() });
   const setPrice = useMutation(api.customers.setCustomerPrice);
   const setAllowed = useMutation(api.customers.setAllowedItem);
@@ -507,7 +578,7 @@ function SpecialPrices({ customerId, customers, copyFrom, setCopyFrom, onCopy }:
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+      <div className="no-print" style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
         <div style={{ position: "relative", flex: 1, minWidth: 180 }}>
           <input className="field" placeholder={t("بحث…", "Search…")} value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingInlineStart: 38 }} />
           <span style={{ position: "absolute", insetInlineStart: 12, top: 11, color: "var(--muted)" }}><Icon name="search" size={16} /></span>
@@ -517,10 +588,16 @@ function SpecialPrices({ customerId, customers, copyFrom, setCopyFrom, onCopy }:
           {customers.filter((c: any) => c._id !== customerId).map((c: any) => <option key={c._id} value={c._id}>{c.name}</option>)}
         </select>
         <button className="btn-secondary" disabled={!copyFrom} onClick={onCopy}><Icon name="copy" size={16} /> {t("نسخ", "Copy")}</button>
+        <button className="btn-ghost" onClick={() => window.print()} title={t("طباعة قائمة أسعار هذا العميل", "Print this customer's price list")}><Icon name="print" size={16} /> {t("طباعة", "Print")}</button>
+        <button className="btn-ghost" disabled={pdfBusy} onClick={exportPdf} title={t("تنزيل/مشاركة قائمة الأسعار PDF", "Download/share price list PDF")}><Icon name="download" size={16} /> {pdfBusy ? "…" : "PDF"}</button>
       </div>
 
+      {/* ورقة قائمة الأسعار (للطباعة وPDF): تعرض فقط الأصناف التي يراها العميل بسعره الفعّال */}
+      <PriceSheet ref={sheetRef} customer={customer} settings={settings ?? {}} lang={lang} t={t}
+        rows={prices.filter((p: any) => p.allowed)} />
+
       {/* الكتالوج المخصّص: أي أصناف تظهر لهذا العميل في الفاتورة وبوابة الطلبات */}
-      <div className="card" style={{ padding: "10px 14px", marginBottom: 12, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+      <div className="card no-print" style={{ padding: "10px 14px", marginBottom: 12, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 220 }}>
           <div style={{ fontWeight: 800 }}>
             {restricted
@@ -541,7 +618,7 @@ function SpecialPrices({ customerId, customers, copyFrom, setCopyFrom, onCopy }:
         )}
       </div>
 
-      <div className="card" style={{ padding: 0, overflowX: "auto" }}>
+      <div className="card no-print" style={{ padding: 0, overflowX: "auto" }}>
         <table className="data-table">
           <thead><tr><th style={{ width: 70, textAlign: "center" }}>{t("يظهر", "Visible")}</th><th>{t("الصنف", "Item")}</th><th style={{ width: 130 }}>{t("وحدة خاصة", "Custom unit")}</th><th style={{ width: 150 }}>{t("السعر (اضغط للتعديل)", "Price (click to edit)")}</th><th>{t("المصدر", "Source")}</th><th style={{ width: 150 }}>{t("افتراضي", "Default")}</th></tr></thead>
           <tbody>
@@ -598,7 +675,7 @@ function SpecialPrices({ customerId, customers, copyFrom, setCopyFrom, onCopy }:
           </tbody>
         </table>
       </div>
-      <div className="text-muted" style={{ fontSize: 12, marginTop: 10 }}>
+      <div className="text-muted no-print" style={{ fontSize: 12, marginTop: 10 }}>
         {t("السعر: عدّله واضغط Enter أو خارج الحقل — يُحفظ كسعر خاص لهذا العميل فقط ولا يؤثر على غيره. «رجوع للافتراضي» يلغي السعر الخاص. الوحدة: اخترها لتصبح خاصة بهذا العميل (مثلاً الموز بالكرتونة).", "Price: edit and press Enter or blur — saved as a custom price for this customer only. “Reset” removes it. Unit: pick a custom unit for this customer (e.g. bananas by carton).")}
       </div>
     </div>
