@@ -148,17 +148,35 @@ export const remove = mutation({
   },
 });
 
-/** أسعار كل الأصناف لعميل محدد (لعرض قائمة أسعاره / داخل الفاتورة). */
+/** مجموعة الأصناف المسموح بها لعميل. null = لا تخصيص (كل الأصناف تظهر). */
+export async function allowedItemIds(ctx: any, customerId: any): Promise<Set<string> | null> {
+  if (!customerId) return null;
+  const rows = await ctx.db
+    .query("customerItems")
+    .withIndex("by_customer", (q: any) => q.eq("customerId", customerId))
+    .collect();
+  return rows.length ? new Set(rows.map((r: any) => String(r.itemId))) : null;
+}
+
+/** أسعار كل الأصناف لعميل محدد (لعرض قائمة أسعاره / داخل الفاتورة).
+ *  onlyAllowed=true ⇒ يُعيد فقط الأصناف المخصّصة للعميل (إن كان له تخصيص). */
 export const priceListFor = query({
-  args: { customerId: v.optional(v.id("customers")), date: v.optional(v.string()) },
+  args: {
+    customerId: v.optional(v.id("customers")),
+    date: v.optional(v.string()),
+    onlyAllowed: v.optional(v.boolean()),
+  },
   handler: async (ctx, args) => {
     const date = todayStr(args.date);
     const items = await ctx.db
       .query("items")
       .withIndex("by_active", (q) => q.eq("active", true))
       .collect();
+    const allowed = await allowedItemIds(ctx, args.customerId);
     const out: any[] = [];
     for (const it of items) {
+      const isAllowed = allowed ? allowed.has(String(it._id)) : true;
+      if (args.onlyAllowed && !isAllowed) continue;
       const p = await effectivePrice(ctx, { itemId: it._id, customerId: args.customerId ?? null, date });
       out.push({
         itemId: it._id,
@@ -170,9 +188,47 @@ export const priceListFor = query({
         sell: p.sell,
         cost: p.cost,
         source: p.source, // customer / priceList / listMargin / default
+        allowed: isAllowed,
+        restricted: allowed !== null, // للعميل كتالوج مخصّص
       });
     }
     return out.sort((a, b) => a.name.localeCompare(b.name));
+  },
+});
+
+/** تفعيل/إلغاء ظهور صنف لعميل. */
+export const setAllowedItem = mutation({
+  args: { customerId: v.id("customers"), itemId: v.id("items"), allowed: v.boolean() },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("customerItems")
+      .withIndex("by_customer_item", (q) => q.eq("customerId", args.customerId).eq("itemId", args.itemId))
+      .first();
+    if (args.allowed) {
+      if (!existing) await ctx.db.insert("customerItems", { customerId: args.customerId, itemId: args.itemId });
+      return;
+    }
+    if (existing) { await ctx.db.delete(existing._id); return; }
+    // لا تخصيص بعد (يظهر الكل) وأُلغي صنف واحد ⇒ حوّل "الكل" إلى قائمة صريحة بدون هذا الصنف
+    const any = await ctx.db.query("customerItems").withIndex("by_customer", (q) => q.eq("customerId", args.customerId)).first();
+    if (any) return;
+    const items = await ctx.db.query("items").withIndex("by_active", (q) => q.eq("active", true)).collect();
+    for (const it of items) {
+      if (it._id !== args.itemId) await ctx.db.insert("customerItems", { customerId: args.customerId, itemId: it._id });
+    }
+  },
+});
+
+/** ضبط قائمة الأصناف المسموح بها دفعة واحدة. قائمة فارغة = إلغاء التخصيص (يظهر الكل). */
+export const setAllowedItems = mutation({
+  args: { customerId: v.id("customers"), itemIds: v.array(v.id("items")) },
+  handler: async (ctx, args) => {
+    const cur = await ctx.db
+      .query("customerItems")
+      .withIndex("by_customer", (q) => q.eq("customerId", args.customerId))
+      .collect();
+    for (const r of cur) await ctx.db.delete(r._id);
+    for (const itemId of new Set(args.itemIds)) await ctx.db.insert("customerItems", { customerId: args.customerId, itemId });
   },
 });
 
@@ -268,6 +324,11 @@ export const copyCustomerPrices = mutation({
     // انسخ أيضًا قائمة الأسعار والخصم
     const from = await ctx.db.get(args.fromId);
     if (from) await ctx.db.patch(args.toId, { priceListId: from.priceListId, discountPct: from.discountPct });
+    // وكذلك الكتالوج المخصّص (الأصناف المسموح بها)
+    const srcAllowed = await ctx.db.query("customerItems").withIndex("by_customer", (q) => q.eq("customerId", args.fromId)).collect();
+    const dstAllowed = await ctx.db.query("customerItems").withIndex("by_customer", (q) => q.eq("customerId", args.toId)).collect();
+    for (const r of dstAllowed) await ctx.db.delete(r._id);
+    for (const r of srcAllowed) await ctx.db.insert("customerItems", { customerId: args.toId, itemId: r.itemId });
     return { copied: source.length };
   },
 });

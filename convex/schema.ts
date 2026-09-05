@@ -105,6 +105,14 @@ export default defineSchema({
     .index("by_customer", ["customerId"])
     .index("by_customer_item", ["customerId", "itemId"]),
 
+  // الأصناف المسموح عرضها لعميل محدد (كتالوج خاص). لا صفوف = كل الأصناف تظهر.
+  customerItems: defineTable({
+    customerId: v.id("customers"),
+    itemId: v.id("items"),
+  })
+    .index("by_customer", ["customerId"])
+    .index("by_customer_item", ["customerId", "itemId"]),
+
   // ── العملاء ──
   customers: defineTable({
     name: v.string(),

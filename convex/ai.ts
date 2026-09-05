@@ -10,6 +10,7 @@ import { api } from "./_generated/api";
 export const parseOrder = action({
   args: {
     token: v.string(),
+    customerId: v.optional(v.id("customers")), // لتقييد الكتالوج بأصناف العميل وأسعاره
     text: v.optional(v.string()),
     imageBase64: v.optional(v.string()),
     imageMediaType: v.optional(v.string()), // image/png | image/jpeg | image/webp
@@ -27,8 +28,10 @@ export const parseOrder = action({
     const settings: any = await ctx.runQuery(api.settings.all, { token: args.token } as any);
     const model = normalizeModel(settings?.aiModel) || (globalThis as any).process?.env?.AI_MODEL?.trim() || "claude-haiku-4-5";
 
-    // كتالوج الأصناف النشطة (المُعرّف + الاسمان + الوحدة)
-    const items = await ctx.runQuery(api.customers.priceListFor, { token: args.token } as any);
+    // كتالوج الأصناف النشطة (المُعرّف + الاسمان + الوحدة) — مقيّد بكتالوج العميل إن كان له تخصيص
+    const items = await ctx.runQuery(api.customers.priceListFor, {
+      token: args.token, customerId: args.customerId, onlyAllowed: true,
+    } as any);
     const catalog = items
       .map((i: any) => `${i.itemId}\t${i.name}\t${i.nameAr ?? ""}\t${i.unit}`)
       .join("\n");

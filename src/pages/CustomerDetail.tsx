@@ -479,6 +479,8 @@ function SpecialPrices({ customerId, customers, copyFrom, setCopyFrom, onCopy }:
   const t = useT(); const { lang } = useLang();
   const prices = useQuery(api.customers.priceListFor, { customerId, date: today() });
   const setPrice = useMutation(api.customers.setCustomerPrice);
+  const setAllowed = useMutation(api.customers.setAllowedItem);
+  const setAllowedBulk = useMutation(api.customers.setAllowedItems);
   const setSetting = useMutation(api.settings.set);
   const settings = useQuery(api.settings.all, {});
   const UNITS = useUnits();
@@ -499,6 +501,8 @@ function SpecialPrices({ customerId, customers, copyFrom, setCopyFrom, onCopy }:
   if (prices === undefined) return <Spinner />;
   const q = search.trim().toLowerCase();
   const rows = prices.filter((p: any) => !q || p.name.toLowerCase().includes(q) || (p.nameAr ?? "").includes(q));
+  const restricted = prices.some((p: any) => p.restricted);
+  const allowedCount = prices.filter((p: any) => p.allowed).length;
   const sourceLabel: Record<string, string> = { customer: t("خاص", "Custom"), priceList: t("قائمة", "List"), listMargin: t("هامش", "Margin"), default: t("افتراضي", "Default") };
 
   return (
@@ -514,16 +518,44 @@ function SpecialPrices({ customerId, customers, copyFrom, setCopyFrom, onCopy }:
         </select>
         <button className="btn-secondary" disabled={!copyFrom} onClick={onCopy}><Icon name="copy" size={16} /> {t("نسخ", "Copy")}</button>
       </div>
+
+      {/* الكتالوج المخصّص: أي أصناف تظهر لهذا العميل في الفاتورة وبوابة الطلبات */}
+      <div className="card" style={{ padding: "10px 14px", marginBottom: 12, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <div style={{ fontWeight: 800 }}>
+            {restricted
+              ? t(`كتالوج مخصّص: يظهر ${allowedCount} من ${prices.length} صنف`, `Custom catalog: ${allowedCount} of ${prices.length} items visible`)
+              : t("يظهر كل الأصناف لهذا العميل", "All items are visible to this customer")}
+          </div>
+          <div className="text-muted" style={{ fontSize: 12 }}>
+            {t("علّم عمود «يظهر» لتحديد الأصناف التي تظهر في الفاتورة وبوابة الطلبات لهذا العميل. لا تحديد = يظهر الكل.", "Tick the “Visible” column to choose which items appear on invoices and the order portal for this customer. None ticked = all visible.")}
+          </div>
+        </div>
+        <button className="btn-secondary" onClick={() => setAllowedBulk({ customerId, itemIds: rows.map((p: any) => p.itemId) })}>
+          <Icon name="check" size={16} /> {q ? t("تحديد نتائج البحث فقط", "Only search results") : t("تحديد الكل", "Select all")}
+        </button>
+        {restricted && (
+          <button className="btn-secondary" onClick={() => confirm(t("إلغاء التخصيص وإظهار كل الأصناف؟", "Remove restriction and show all items?")) && setAllowedBulk({ customerId, itemIds: [] })}>
+            {t("إظهار الكل (إلغاء التخصيص)", "Show all (remove restriction)")}
+          </button>
+        )}
+      </div>
+
       <div className="card" style={{ padding: 0, overflowX: "auto" }}>
         <table className="data-table">
-          <thead><tr><th>{t("الصنف", "Item")}</th><th style={{ width: 130 }}>{t("وحدة خاصة", "Custom unit")}</th><th>{t("السعر الفعّال", "Effective")}</th><th>{t("المصدر", "Source")}</th><th style={{ width: 140 }}>{t("سعر خاص", "Custom price")}</th></tr></thead>
+          <thead><tr><th style={{ width: 70, textAlign: "center" }}>{t("يظهر", "Visible")}</th><th>{t("الصنف", "Item")}</th><th style={{ width: 130 }}>{t("وحدة خاصة", "Custom unit")}</th><th style={{ width: 150 }}>{t("السعر (اضغط للتعديل)", "Price (click to edit)")}</th><th>{t("المصدر", "Source")}</th><th style={{ width: 150 }}>{t("افتراضي", "Default")}</th></tr></thead>
           <tbody>
             {rows.map((p: any) => {
               const baseUnit = p.baseUnit ?? p.unit;
               const unitOverride = p.unit !== baseUnit ? p.unit : undefined;   // وحدة خاصة إن اختلفت عن وحدة الصنف
               const customPrice = p.source === "customer" ? p.sell : undefined;
               return (
-                <tr key={p.itemId}>
+                <tr key={p.itemId} style={{ opacity: restricted && !p.allowed ? 0.55 : 1 }}>
+                  <td style={{ textAlign: "center" }}>
+                    <input type="checkbox" checked={!!p.allowed} title={t("يظهر لهذا العميل", "Visible to this customer")}
+                      onChange={(e) => setAllowed({ customerId, itemId: p.itemId, allowed: e.target.checked })}
+                      style={{ width: 18, height: 18, cursor: "pointer", accentColor: "var(--accent-dark)" }} />
+                  </td>
                   <td style={{ fontWeight: 700 }}>{lang === "ar" ? (p.nameAr ?? p.name) : p.name}</td>
                   <td>
                     <select className="field" value={p.unit}
@@ -537,12 +569,28 @@ function SpecialPrices({ customerId, customers, copyFrom, setCopyFrom, onCopy }:
                       {user?.role === "admin" && <option value="__add">＋ {t("وحدة جديدة…", "New unit…")}</option>}
                     </select>
                   </td>
-                  <td className="tabular" style={{ fontWeight: 700 }}>{money(p.sell, false)}</td>
+                  <td>
+                    {/* السعر الفعّال قابل للتعديل مباشرة: أي قيمة مختلفة تُحفظ كسعر خاص لهذا العميل فقط */}
+                    <input key={p.itemId + ":" + p.sell} className="field tabular" inputMode="decimal" dir="ltr" defaultValue={p.sell}
+                      onFocus={(e) => e.target.select()}
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                      onBlur={(e) => {
+                        const v = normalizeNum(e.target.value);
+                        if (v === "") { e.target.value = String(p.sell); return; }
+                        const n = parseNum(v);
+                        if (Math.abs(n - p.sell) < 0.005) return; // لم يتغيّر
+                        setPrice({ customerId, itemId: p.itemId, price: n, unit: unitOverride });
+                      }}
+                      style={{ padding: "6px 8px", fontWeight: 800, color: p.source === "customer" ? "var(--accent-dark)" : undefined }} />
+                  </td>
                   <td><span className={"pill " + (p.source === "customer" ? "badge-champion" : "badge-muted")}>{sourceLabel[p.source]}</span></td>
                   <td>
-                    <input className="field tabular" inputMode="decimal" dir="ltr" placeholder="—" defaultValue={customPrice ?? ""}
-                      onBlur={(e) => { const v = normalizeNum(e.target.value); setPrice({ customerId, itemId: p.itemId, price: v === "" ? undefined : parseNum(v), unit: unitOverride }); }}
-                      style={{ padding: "6px 8px" }} />
+                    {p.source === "customer"
+                      ? <button className="btn-ghost" style={{ fontSize: 12, padding: "4px 8px" }} title={t("إلغاء السعر الخاص والرجوع للسعر الافتراضي", "Remove custom price")}
+                          onClick={() => setPrice({ customerId, itemId: p.itemId, price: undefined, unit: unitOverride })}>
+                          ↩ {t("رجوع للافتراضي", "Reset")}
+                        </button>
+                      : <span className="text-muted" style={{ fontSize: 12 }}>—</span>}
                   </td>
                 </tr>
               );
@@ -551,7 +599,7 @@ function SpecialPrices({ customerId, customers, copyFrom, setCopyFrom, onCopy }:
         </table>
       </div>
       <div className="text-muted" style={{ fontSize: 12, marginTop: 10 }}>
-        {t("السعر: اكتبه واضغط خارج الحقل للحفظ (فارغ = السعر الافتراضي). الوحدة: اخترها لتصبح خاصة بهذا العميل (مثلاً الموز بالكرتونة).", "Price: type and blur to save (empty = default). Unit: pick a custom unit for this customer (e.g. bananas by carton).")}
+        {t("السعر: عدّله واضغط Enter أو خارج الحقل — يُحفظ كسعر خاص لهذا العميل فقط ولا يؤثر على غيره. «رجوع للافتراضي» يلغي السعر الخاص. الوحدة: اخترها لتصبح خاصة بهذا العميل (مثلاً الموز بالكرتونة).", "Price: edit and press Enter or blur — saved as a custom price for this customer only. “Reset” removes it. Unit: pick a custom unit for this customer (e.g. bananas by carton).")}
       </div>
     </div>
   );

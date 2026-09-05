@@ -2,6 +2,7 @@ import { authQuery, authMutation, customerQuery, customerMutation } from "./auth
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { effectivePrice, todayStr, round2, nextInvoiceNumber, logAction, recomputeBalance } from "./helpers";
+import { allowedItemIds } from "./customers";
 
 async function nextOrderNumber(ctx: any): Promise<string> {
   const counter = await ctx.db.query("counters").withIndex("by_name", (q: any) => q.eq("name", "order")).first();
@@ -65,8 +66,11 @@ export const myItems = customerQuery({
     const cats = await ctx.db.query("categories").collect();
     const catMap = new Map(cats.map((c: any) => [c._id, c]));
     const date = todayStr();
+    // كتالوج مخصّص للعميل (إن وُجد) — يرى فقط الأصناف المسموح بها له
+    const allowed = await allowedItemIds(ctx, ctx.user.customerId);
     const out: any[] = [];
     for (const it of items) {
+      if (allowed && !allowed.has(String(it._id))) continue;
       const p = await effectivePrice(ctx, { itemId: it._id, customerId: ctx.user.customerId, date });
       out.push({
         itemId: it._id, name: it.nameEn, nameAr: it.nameAr, unit: p.unit || it.unit,

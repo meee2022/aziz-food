@@ -54,7 +54,8 @@ export default function InvoiceCreate() {
   // أسعار الأصناف الفعّالة للعميل المختار + التصنيفات
   // تاريخ التسعير: أسعار اليوم افتراضيًا، أو أسعار تاريخ الفاتورة إن اختار المستخدم ذلك
   const pricingDate = usePricesOfDate ? date : today();
-  const prices = useQuery(api.customers.priceListFor, customerId ? { customerId: customerId as any, date: pricingDate } : { date: pricingDate });
+  // onlyAllowed: لو للعميل كتالوج مخصّص تظهر أصنافه فقط
+  const prices = useQuery(api.customers.priceListFor, customerId ? { customerId: customerId as any, date: pricingDate, onlyAllowed: true } : { date: pricingDate });
   const cats = useQuery(api.categories.list, {});
   const knownBranches = useQuery(api.invoices.branches, {});
   // الرقم التالي المقترح حسب آخر فاتورة لهذا العميل
@@ -149,7 +150,7 @@ export default function InvoiceCreate() {
     if (!importText.trim()) { setImportMsg({ ok: false, text: t("اكتب الطلب أولًا", "Type the order first") }); return; }
     setImportBusy(true); setImportMsg(null);
     try {
-      const res: any = await parseOrderAI({ token: token ?? "", text: importText });
+      const res: any = await parseOrderAI({ token: token ?? "", customerId: (customerId || undefined) as any, text: importText });
       applyImport(res.matched, res.unmatched);
       setImportText("");
     } catch (e: any) {
@@ -164,7 +165,7 @@ export default function InvoiceCreate() {
         const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = reject; r.readAsDataURL(file);
       });
       const base64 = dataUrl.split(",")[1];
-      const res: any = await parseOrderAI({ token: token ?? "", imageBase64: base64, imageMediaType: file.type || "image/jpeg" });
+      const res: any = await parseOrderAI({ token: token ?? "", customerId: (customerId || undefined) as any, imageBase64: base64, imageMediaType: file.type || "image/jpeg" });
       applyImport(res.matched, res.unmatched);
     } catch (e: any) {
       setImportMsg({ ok: false, text: String(e?.message ?? e).replace(/^.*Error:\s*/s, "").split("\n")[0] });
