@@ -41,11 +41,19 @@ export async function elementToPdfBlob(el: HTMLElement): Promise<Blob> {
   const canvas = await html2canvas(el, {
     scale: 2, backgroundColor: "#ffffff", useCORS: true,
     ignoreElements: (e) => (e as HTMLElement).classList?.contains("no-print"), // لا تلتقط كتلة الربح الداخلية
-    onclone: (doc) => {
+    onclone: async (doc) => {
       doc.documentElement.style.cssText += ";" + rootVars.join(";");
       const target = doc.querySelector<HTMLElement>(`.${Array.from(el.classList).join(".")}`) ?? doc.body;
       target.style.fontFamily = fontFamily;
       doc.body.style.fontFamily = fontFamily;
+      // الخطوط (Cairo/Inter) تُحمَّل في النسخة المستنسخة بشكل غير متزامن (display=swap)، فلو قيست
+      // مواضع الكلمات بخط بديل ثم رُسمت بالخط الحقيقي تراكبت الكلمات العربية وظهرت فراغات غريبة.
+      // نجبر النسخة على تحميل نفس الخطوط المحمّلة في الصفحة وننتظرها قبل الرسم.
+      try {
+        const loaded = Array.from((document as any).fonts as Iterable<FontFace>).filter((f) => f.status === "loaded");
+        await Promise.all(loaded.map((f) => (doc as any).fonts.load(`${f.style} ${f.weight} 16px "${f.family}"`).catch(() => null)));
+        await (doc as any).fonts.ready;
+      } catch {}
       // html2canvas يرسم كل كلمة على حدة ويخطئ في مواضع الكلمات العربية (RTL) فتتراكب.
       // نربط كلمات كل نص عربي بمسافة غير فاصلة (NBSP) فتُرسم الجملة كوحدة واحدة — في النسخة الملتقطة فقط.
       const walker = doc.createTreeWalker(target, NodeFilter.SHOW_TEXT);
