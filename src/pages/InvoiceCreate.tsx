@@ -314,6 +314,8 @@ export default function InvoiceCreate() {
 
       {customerId && (
         <>
+          <div className="pos-grid">
+          <div className="pos-items">
           {/* استيراد طلب العميل: نص/صورة (ذكاء اصطناعي) أو ملف إكسيل */}
           <div className="card no-print" style={{ marginBottom: 14, padding: 14, borderInlineStart: "3px solid var(--accent)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -361,8 +363,7 @@ export default function InvoiceCreate() {
           </div>
 
           {/* إضافة صنف — تصفّح بالضغط أو بحث (عربي/إنجليزي) — ثابت أعلى الشاشة */}
-          <div className="card item-search-sticky" style={{ marginBottom: 14, position: "sticky", top: 56, zIndex: 15, boxShadow: "0 6px 20px -10px rgba(60,10,20,.35)" }}
-            onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setPickerOpen(false); }}>
+          <div className="card" style={{ marginBottom: 14, padding: 12 }}>
             <label className="label">{t("إضافة صنف — حدّد الكمية ثم أضف، أو اكتب للبحث", "Add item — set qty then add, or type to search")}</label>
             <input ref={itemInputRef} className="field" placeholder={t("اكتب اسم الصنف (عربي/إنجليزي)…", "Type item name…")} value={itemSearch}
               onChange={(e) => { setItemSearch(e.target.value); setPickerOpen(true); }}
@@ -370,8 +371,8 @@ export default function InvoiceCreate() {
               onKeyDown={(e) => { if (e.key === "Enter" && matchedItems[0]) addItem(matchedItems[0], pickQtyOf(matchedItems[0].itemId)); if (e.key === "Escape") setPickerOpen(false); }} style={{ paddingInlineStart: 38, fontSize: 16 }} />
             <span style={{ position: "absolute", insetInlineStart: 28, top: 42, color: "var(--muted)" }}><Icon name="search" size={18} /></span>
 
-            {pickerOpen && (
-              <div style={{ position: "absolute", insetInline: 0, top: "100%", marginTop: 6, zIndex: 25, background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)", boxShadow: "0 18px 44px -14px rgba(40,10,20,.45)", overflow: "hidden" }}>
+            {(
+              <div style={{ marginTop: 10, background: "var(--surface)", borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden" }}>
                 {/* شرائح التصنيفات */}
                 <div style={{ display: "flex", gap: 6, padding: 10, flexWrap: "wrap", borderBottom: "1px solid var(--border)" }}>
                   <button className={catFilter === "" ? "btn-primary" : "btn-ghost"} style={{ padding: "5px 12px", fontSize: 13 }} onClick={() => setCatFilter("")}>{t("الكل", "All")}</button>
@@ -382,7 +383,7 @@ export default function InvoiceCreate() {
                   ))}
                 </div>
                 {/* شبكة الأصناف */}
-                <div style={{ maxHeight: 400, overflowY: "auto", padding: 8, display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 6 }}>
+                <div className="pos-item-grid" style={{ overflowY: "auto", padding: 8, display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(126px,1fr))", gap: 7 }}>
                   {matchedItems.map((p: any) => {
                     const q = pickQtyOf(p.itemId);
                     return (
@@ -421,65 +422,68 @@ export default function InvoiceCreate() {
             )}
           </div>
 
-          {/* أسطر الفاتورة */}
-          <div className="card" style={{ padding: 0, marginBottom: 14, overflowX: "auto" }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>{t("الصنف", "Item")}</th>
-                  <th style={{ width: 128 }}>{t("الكمية", "Qty")}</th>
-                  <th style={{ width: 110 }}>{t("السعر", "Price")}</th>
-                  <th style={{ width: 100 }}>{t("الإجمالي", "Total")}</th>
-                  <th style={{ width: 44 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((l, i) => {
-                  const below = l.unitPrice < l.cost;
-                  const cp: any = l.itemId ? priceByItem.get(l.itemId) : null;
-                  const src = cp ? (PRICE_SOURCE[cp.source] ?? PRICE_SOURCE.default) : null;
-                  const edited = cp && Math.abs(l.unitPrice - cp.sell) > 1e-6; // عدّل المستخدم السعر يدويًا
-                  return (
-                    <tr key={i} style={below ? { background: "var(--danger-bg)" } : undefined}>
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                          <span style={{ fontWeight: 700 }}>{l.name}</span>
-                          <select value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })}
-                            title={t("وحدة البيع لهذا السطر", "Unit for this line")}
-                            style={{ fontSize: 11, fontWeight: 700, padding: "2px 6px", borderRadius: 999, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--ink)", cursor: "pointer" }}>
-                            {[...new Set([l.unit, ...UNITS])].map((u) => <option key={u} value={u}>{u}</option>)}
-                          </select>
-                          {edited
-                            ? <span className="pill badge-warning" style={{ fontSize: 10 }} title={t("عدّلت السعر يدويًا لهذا السطر", "Price manually edited")}>{t("معدّل يدويًا", "Edited")}</span>
-                            : src && <span className={"pill " + src[2]} style={{ fontSize: 10 }} title={t("مصدر السعر", "Price source")}>{t(src[0], src[1])}</span>}
-                        </div>
-                        {below && <div className="text-danger" style={{ fontSize: 11, color: "var(--danger)" }}><Icon name="alert" size={11} /> {t("أقل من التكلفة", "Below cost")} ({money(l.cost, false)})</div>}
-                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>
-                          {qtyPresets(l.unit).map(([label, q]) => (
-                            <button key={label} type="button" onClick={() => setLine(i, { qty: q })}
-                              style={{ fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 999, cursor: "pointer",
-                                border: "1px solid " + (Math.abs(l.qty - q) < 1e-9 ? "var(--accent)" : "var(--border)"),
-                                background: Math.abs(l.qty - q) < 1e-9 ? "color-mix(in srgb,var(--accent) 22%,transparent)" : "var(--surface)", color: "var(--ink)" }}>
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                          <button type="button" className="btn-ghost" title={t("إنقاص", "Decrease")} onClick={() => setLine(i, { qty: Math.max(0, r2(l.qty - stepDown(l.qty))) })} style={{ padding: 0, width: 30, height: 34, minWidth: 30, fontSize: 20, fontWeight: 800, lineHeight: 1 }}>−</button>
-                          <NumField value={l.qty} onChange={(n) => setLine(i, { qty: n })} style={{ padding: "6px 4px", width: 58, textAlign: "center" }} />
-                          <button type="button" className="btn-ghost" title={t("زيادة", "Increase")} onClick={() => setLine(i, { qty: r2(l.qty + stepUp(l.qty)) })} style={{ padding: 0, width: 30, height: 34, minWidth: 30, fontSize: 18, fontWeight: 800, lineHeight: 1 }}>+</button>
-                        </div>
-                      </td>
-                      <td><NumField value={l.unitPrice} onChange={(n) => setLine(i, { unitPrice: n })} style={{ padding: "6px 8px", width: 96, color: below ? "var(--danger)" : undefined, fontWeight: 700 }} /></td>
-                      <td className="tabular" style={{ fontWeight: 800 }}>{money(l.qty * l.unitPrice, false)}</td>
-                      <td><button className="btn-ghost btn-icon" onClick={() => removeLine(i)}><Icon name="trash" size={15} /></button></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          </div>{/* ‎/pos-items */}
+
+          <div className="pos-cart">
+          {/* سلة الفاتورة — بطاقات مضغوطة تناسب العمود الجانبي بدل جدول عريض */}
+          <div className="card cart-card" style={{ padding: 10, marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "2px 4px 8px" }}>
+              <span style={{ fontWeight: 800, fontSize: 14 }}>{t("الفاتورة", "Invoice")}</span>
+              <span className="pill badge-muted" style={{ fontSize: 11 }}>{lines.length} {t("صنف", "items")}</span>
+            </div>
+
+            <div style={{ display: "grid", gap: 8 }}>
+              {lines.map((l, i) => {
+                const below = l.unitPrice < l.cost;
+                const cp: any = l.itemId ? priceByItem.get(l.itemId) : null;
+                const src = cp ? (PRICE_SOURCE[cp.source] ?? PRICE_SOURCE.default) : null;
+                const edited = cp && Math.abs(l.unitPrice - cp.sell) > 1e-6; // عدّل المستخدم السعر يدويًا
+                return (
+                  <div key={i} className="cart-line" style={{ border: "1px solid " + (below ? "var(--danger)" : "var(--border)"), background: below ? "var(--danger-bg)" : "var(--surface)", borderRadius: 11, padding: "8px 9px" }}>
+                    {/* السطر الأول: الاسم + الوحدة + حذف */}
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                      <span style={{ fontWeight: 800, fontSize: 13, lineHeight: 1.35, flex: 1, minWidth: 0 }}>{l.name}</span>
+                      <select value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })}
+                        title={t("وحدة البيع لهذا السطر", "Unit for this line")}
+                        style={{ fontSize: 11, fontWeight: 700, padding: "2px 6px", borderRadius: 999, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", cursor: "pointer" }}>
+                        {[...new Set([l.unit, ...UNITS])].map((u) => <option key={u} value={u}>{u}</option>)}
+                      </select>
+                      <button className="btn-ghost btn-icon" title={t("حذف", "Remove")} onClick={() => removeLine(i)} style={{ width: 28, height: 28, padding: 0, flexShrink: 0 }}><Icon name="trash" size={14} /></button>
+                    </div>
+
+                    {/* السطر الثاني: الكمية × السعر = الإجمالي */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                        <button type="button" className="btn-ghost" title={t("إنقاص", "Decrease")} onClick={() => setLine(i, { qty: Math.max(0, r2(l.qty - stepDown(l.qty))) })} style={{ padding: 0, width: 28, height: 30, minWidth: 28, fontSize: 18, fontWeight: 800, lineHeight: 1 }}>−</button>
+                        <NumField value={l.qty} onChange={(n) => setLine(i, { qty: n })} style={{ padding: "5px 2px", width: 46, textAlign: "center", fontWeight: 700 }} />
+                        <button type="button" className="btn-ghost" title={t("زيادة", "Increase")} onClick={() => setLine(i, { qty: r2(l.qty + stepUp(l.qty)) })} style={{ padding: 0, width: 28, height: 30, minWidth: 28, fontSize: 16, fontWeight: 800, lineHeight: 1 }}>+</button>
+                      </div>
+                      <span className="text-muted" style={{ fontSize: 12 }}>×</span>
+                      <NumField value={l.unitPrice} onChange={(n) => setLine(i, { unitPrice: n })}
+                        style={{ padding: "5px 6px", width: 66, textAlign: "center", color: below ? "var(--danger)" : undefined, fontWeight: 700 }} />
+                      <span className="tabular" style={{ fontWeight: 900, fontSize: 14, marginInlineStart: "auto" }}>{money(l.qty * l.unitPrice, false)}</span>
+                    </div>
+
+                    {/* كميات جاهزة + حالة السعر */}
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}>
+                      {qtyPresets(l.unit).map(([label, q]) => (
+                        <button key={label} type="button" onClick={() => setLine(i, { qty: q })}
+                          style={{ fontSize: 10.5, fontWeight: 700, padding: "1px 8px", borderRadius: 999, cursor: "pointer",
+                            border: "1px solid " + (Math.abs(l.qty - q) < 1e-9 ? "var(--accent)" : "var(--border)"),
+                            background: Math.abs(l.qty - q) < 1e-9 ? "color-mix(in srgb,var(--accent) 22%,transparent)" : "var(--card)", color: "var(--ink)" }}>
+                          {label}
+                        </button>
+                      ))}
+                      {edited
+                        ? <span className="pill badge-warning" style={{ fontSize: 10, marginInlineStart: "auto" }} title={t("عدّلت السعر يدويًا لهذا السطر", "Price manually edited")}>{t("معدّل يدويًا", "Edited")}</span>
+                        : src && <span className={"pill " + src[2]} style={{ fontSize: 10, marginInlineStart: "auto" }} title={t("مصدر السعر", "Price source")}>{t(src[0], src[1])}</span>}
+                    </div>
+
+                    {below && <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 4 }}><Icon name="alert" size={11} /> {t("أقل من التكلفة", "Below cost")} ({money(l.cost, false)})</div>}
+                  </div>
+                );
+              })}
+            </div>
             {lines.length === 0 && <Empty text={t("ابحث عن صنف وأضفه للفاتورة", "Search and add items")} icon="cart" />}
           </div>
 
@@ -545,6 +549,8 @@ export default function InvoiceCreate() {
               </div>
             </div>
           )}
+          </div>{/* ‎/pos-cart */}
+          </div>{/* ‎/pos-grid */}
         </>
       )}
     </div>

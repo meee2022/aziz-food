@@ -179,3 +179,14 @@ body {
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   @page { size: A4; margin: 10mm; }
 }
+
+/* ── تخطيط الفاتورة بنمط نقطة البيع: الأصناف في عمود والفاتورة جنبها ── */
+.pos-grid { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
+.pos-item-grid { max-height: 58vh; }
+@media (min-width: 1024px) {
+  .pos-grid { grid-template-columns: minmax(0, 1.8fr) minmax(300px, .9fr); gap: 16px; }
+  /* الفاتورة تبقى أمام عينك أثناء تصفّح الأصناف */
+  .pos-cart { position: sticky; top: 64px; max-height: calc(100vh - 78px); overflow-y: auto; padding-inline-end: 2px; }
+  .pos-item-grid { max-height: calc(100vh - 320px); min-height: 300px; }
+}
+@media print { .pos-grid { display: block; } .pos-cart { position: static; max-height: none; overflow: visible; } }
