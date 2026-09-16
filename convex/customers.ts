@@ -183,6 +183,7 @@ export const priceListFor = query({
         name: it.nameEn,
         nameAr: it.nameAr,
         unit: p.unit || it.unit,   // وحدة خاصة بالعميل إن وُجدت
+        imageUrl: it.imageId ? await ctx.storage.getUrl(it.imageId) : null,
         baseUnit: it.unit,
         categoryId: it.categoryId,
         sell: p.sell,

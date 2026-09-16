@@ -56,6 +56,7 @@ export default defineSchema({
     defaultCost: v.number(),        // سعر شراء/تكلفة افتراضي
     defaultSell: v.number(),        // سعر بيع افتراضي
     origin: v.optional(v.union(v.literal("local"), v.literal("imported"))),
+    imageId: v.optional(v.id("_storage")), // صورة الصنف (تظهر عند الاختيار وفي بوابة الطلبات)
     active: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),

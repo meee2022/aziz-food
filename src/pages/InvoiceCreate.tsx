@@ -8,6 +8,7 @@ import { useAuth } from "../lib/auth";
 import { money, num, today, PRICE_SOURCE } from "../lib/format";
 import { parseExcelOrder, type CatalogItem } from "../lib/importOrder";
 import { useAction } from "convex/react";
+import ItemPhoto from "../components/ItemPhoto";
 import { PageHeader, Icon, Spinner, Empty, NumField } from "../components/ui";
 import { useUnits } from "../lib/units";
 
@@ -381,11 +382,14 @@ export default function InvoiceCreate() {
                   ))}
                 </div>
                 {/* شبكة الأصناف */}
-                <div style={{ maxHeight: 320, overflowY: "auto", padding: 8, display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 6 }}>
+                <div style={{ maxHeight: 400, overflowY: "auto", padding: 8, display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 6 }}>
                   {matchedItems.map((p: any) => {
                     const q = pickQtyOf(p.itemId);
                     return (
                       <div key={p.itemId} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 9, padding: "6px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+                        {/* صورة الصنف — تسهّل الاختيار السريع على التابلت */}
+                        <ItemPhoto url={p.imageUrl} name={p.name} width="100%" height={72} radius={7}
+                          style={{ marginBottom: 4, cursor: "pointer" }} />
                         <span style={{ fontWeight: 800, fontSize: 12.5, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lang === "ar" ? (p.nameAr ?? p.name) : p.name}</span>
                         <span className="text-muted" style={{ fontSize: 9.5, fontFamily: "Inter, sans-serif", direction: "ltr", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lang === "ar" ? p.name : (p.nameAr ?? "")}</span>
                         <span className="tabular" style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>

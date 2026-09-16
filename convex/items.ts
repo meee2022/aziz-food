@@ -34,6 +34,7 @@ export const list = query({
         todaySell: sell,
         marginPct: margin,
         pricedToday, // هل حُدّث سعره اليوم؟
+        imageUrl: it.imageId ? await ctx.storage.getUrl(it.imageId) : null,
       });
     }
     return out.sort((a, b) => a.nameEn.localeCompare(b.nameEn));
@@ -103,6 +104,32 @@ export const update = mutation({
   },
   handler: async (ctx, { id, ...rest }) => {
     await ctx.db.patch(id, { ...rest, updatedAt: Date.now() });
+  },
+});
+
+/** رابط رفع مؤقّت لصورة صنف (الواجهة ترفع الملف عليه ثم تنادي setImage). */
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx: any) => await ctx.storage.generateUploadUrl(),
+});
+
+/** ربط صورة مرفوعة بصنف، مع حذف الصورة القديمة إن وُجدت. */
+export const setImage = mutation({
+  args: { id: v.id("items"), storageId: v.id("_storage") },
+  handler: async (ctx: any, { id, storageId }: any) => {
+    const it = await ctx.db.get(id);
+    if (it?.imageId) await ctx.storage.delete(it.imageId).catch(() => {});
+    await ctx.db.patch(id, { imageId: storageId, updatedAt: Date.now() });
+  },
+});
+
+/** حذف صورة الصنف. */
+export const removeImage = mutation({
+  args: { id: v.id("items") },
+  handler: async (ctx: any, { id }: any) => {
+    const it = await ctx.db.get(id);
+    if (it?.imageId) await ctx.storage.delete(it.imageId).catch(() => {});
+    await ctx.db.patch(id, { imageId: undefined, updatedAt: Date.now() });
   },
 });
 

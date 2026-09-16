@@ -6,6 +6,8 @@ import { useAuth } from "../lib/auth";
 import { money, num, today, formatDate } from "../lib/format";
 import { readExcelRaw, guessItemRow, exportExcel } from "../lib/xlsx";
 import { PageHeader, Icon, Modal, Spinner, Empty, NumField } from "../components/ui";
+import ItemPhoto from "../components/ItemPhoto";
+import { uploadItemImage } from "../lib/itemImage";
 
 import { useUnits } from "../lib/units";
 
@@ -19,13 +21,36 @@ export default function Items() {
   const update = useMutation(api.items.update);
   const remove = useMutation(api.items.remove);
   const importItems = useMutation(api.prices.importItems);
+  const genUploadUrl = useMutation(api.items.generateUploadUrl);
+  const setItemImage = useMutation(api.items.setImage);
+  const removeItemImage = useMutation(api.items.removeImage);
   const fileRef = useRef<HTMLInputElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+  const photoTarget = useRef<string | null>(null);   // الصنف الذي نرفع له صورة
+  const [uploading, setUploading] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState<string>("");
   const [editing, setEditing] = useState<any>(null);
   const [historyItem, setHistoryItem] = useState<any>(null);
   const [importResult, setImportResult] = useState<string>("");
+
+  /** فتح نافذة اختيار صورة لصنف محدد. */
+  const pickPhoto = (id: string) => { photoTarget.current = id; photoRef.current?.click(); };
+
+  const onPhotoChosen = async (file?: File) => {
+    const id = photoTarget.current;
+    if (!file || !id) return;
+    setUploading(id);
+    try {
+      await uploadItemImage(file, id, () => genUploadUrl({}).then((u: any) => u), (a) => setItemImage(a));
+    } catch (e: any) {
+      alert(t("تعذّر رفع الصورة: ", "Upload failed: ") + (e?.message ?? e));
+    } finally {
+      setUploading(null);
+      if (photoRef.current) photoRef.current.value = "";
+    }
+  };
 
   const filtered = useMemo(() => {
     if (!items) return [];
@@ -84,10 +109,14 @@ export default function Items() {
         </select>
       </div>
 
+      <input ref={photoRef} type="file" accept="image/*" hidden
+        onChange={(e) => onPhotoChosen(e.target.files?.[0])} />
+
       <div className="card" style={{ padding: 0, overflowX: "auto" }}>
         <table className="data-table">
           <thead>
             <tr>
+              <th style={{ width: 62 }}>{t("صورة", "Photo")}</th>
               <th>{t("الصنف", "Item")}</th>
               <th>{t("الوحدة", "Unit")}</th>
               <th>{t("التصنيف", "Category")}</th>
@@ -100,6 +129,20 @@ export default function Items() {
           <tbody>
             {filtered.map((it) => (
               <tr key={it._id}>
+                <td>
+                  {/* اضغط الصورة لرفع/تغيير صورة الصنف */}
+                  <div style={{ position: "relative", width: 48 }}>
+                    <button type="button" onClick={() => pickPhoto(it._id)} title={t("رفع/تغيير الصورة", "Upload / change photo")}
+                      style={{ padding: 0, border: "none", background: "none", cursor: "pointer", display: "block", opacity: uploading === it._id ? .5 : 1 }}>
+                      <ItemPhoto url={(it as any).imageUrl} name={it.nameEn} size={48} radius={9} />
+                    </button>
+                    {(it as any).imageUrl && (
+                      <button type="button" title={t("حذف الصورة", "Remove photo")}
+                        onClick={() => confirm(t("حذف صورة الصنف؟", "Remove item photo?")) && removeItemImage({ id: it._id })}
+                        style={{ position: "absolute", insetInlineEnd: -6, top: -6, width: 18, height: 18, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--card)", color: "var(--muted)", cursor: "pointer", fontSize: 11, lineHeight: 1, padding: 0 }}>×</button>
+                    )}
+                  </div>
+                </td>
                 <td>
                   <div style={{ fontWeight: 700 }}>{lang === "ar" ? (it.nameAr ?? it.nameEn) : it.nameEn}</div>
                   <div className="text-muted" style={{ fontSize: 11 }}>{lang === "ar" ? it.nameEn : it.nameAr}</div>

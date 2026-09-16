@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "../lib/authedConvex";
 import { api } from "../../convex/_generated/api";
+import ItemPhoto from "../components/ItemPhoto";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { money, num, formatDate } from "../lib/format";
@@ -112,6 +113,7 @@ function NewOrder() {
           const q = qty[p.itemId] ?? 0;
           return (
             <div key={p.itemId} className="card" style={{ padding: 12, border: q > 0 ? "1.5px solid var(--accent)" : undefined }}>
+              <ItemPhoto url={p.imageUrl} name={p.name} width="100%" height={104} radius={9} style={{ marginBottom: 8 }} />
               <div style={{ fontWeight: 800, fontSize: 14 }}>{lang === "ar" ? (p.nameAr ?? p.name) : p.name}</div>
               <div className="text-muted" style={{ fontSize: 11, fontFamily: "Inter, sans-serif", direction: "ltr" }}>{lang === "ar" ? p.name : (p.nameAr ?? "")}</div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "6px 0 8px" }}>

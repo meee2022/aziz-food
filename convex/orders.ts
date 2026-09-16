@@ -76,6 +76,7 @@ export const myItems = customerQuery({
         itemId: it._id, name: it.nameEn, nameAr: it.nameAr, unit: p.unit || it.unit,
         categoryId: it.categoryId,
         category: it.categoryId ? catMap.get(it.categoryId) ?? null : null,
+        imageUrl: it.imageId ? await ctx.storage.getUrl(it.imageId) : null,
         sell: p.sell,
       });
     }
