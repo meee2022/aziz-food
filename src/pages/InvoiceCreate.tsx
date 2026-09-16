@@ -383,33 +383,33 @@ export default function InvoiceCreate() {
                   ))}
                 </div>
                 {/* شبكة الأصناف */}
-                <div className="pos-item-grid" style={{ overflowY: "auto", padding: 8, display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(126px,1fr))", gap: 7 }}>
+                <div className="pos-item-grid" style={{ overflowY: "auto", padding: 10, display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(168px,1fr))", gap: 10 }}>
                   {matchedItems.map((p: any) => {
                     const q = pickQtyOf(p.itemId);
                     return (
-                      <div key={p.itemId} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 9, padding: "6px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+                      <div key={p.itemId} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 9, display: "flex", flexDirection: "column", gap: 3 }}>
                         {/* صورة الصنف — تسهّل الاختيار السريع على التابلت */}
-                        <ItemPhoto url={p.imageUrl} name={p.name} width="100%" height={72} radius={7}
-                          style={{ marginBottom: 4, cursor: "pointer" }} />
-                        <span style={{ fontWeight: 800, fontSize: 12.5, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lang === "ar" ? (p.nameAr ?? p.name) : p.name}</span>
-                        <span className="text-muted" style={{ fontSize: 9.5, fontFamily: "Inter, sans-serif", direction: "ltr", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lang === "ar" ? p.name : (p.nameAr ?? "")}</span>
+                        <ItemPhoto url={p.imageUrl} name={p.name} width="100%" height={96} radius={9} fit="contain"
+                          style={{ marginBottom: 5, cursor: "pointer", background: "#fff" }} />
+                        <span style={{ fontWeight: 800, fontSize: 13.5, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lang === "ar" ? (p.nameAr ?? p.name) : p.name}</span>
+                        <span className="text-muted" style={{ fontSize: 10, fontFamily: "Inter, sans-serif", direction: "ltr", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lang === "ar" ? p.name : (p.nameAr ?? "")}</span>
                         <span className="tabular" style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                           {p.source === "customer" && <span title={t("سعر خاص", "Custom")} style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent-dark)" }} />}
                           <b className="text-primary" style={{ fontSize: 13 }}>{money(p.sell, false)}</b>
                           <span className="text-muted" style={{ fontSize: 9 }}>{p.unit}</span>
                         </span>
                         {/* الكمية + إضافة */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "32px minmax(48px,1fr) 32px", alignItems: "center", gap: 4, marginTop: 4 }}>
                           <button type="button" title={t("إنقاص", "Decrease")} onClick={() => setPickQtyOf(p.itemId, q - stepDown(q))}
-                            style={{ width: 24, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", fontWeight: 800, fontSize: 15, lineHeight: 1 }}>−</button>
+                            style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", fontWeight: 800, fontSize: 17, lineHeight: 1 }}>−</button>
                           <NumField className="tabular" value={q}
                             onChange={(n) => setPickQtyOf(p.itemId, n)}
                             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(p, pickQtyOf(p.itemId)); } }}
-                            style={{ width: 50, height: 26, textAlign: "center", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", fontSize: 12, fontWeight: 700, color: "var(--ink)" }} />
+                            style={{ width: "100%", height: 32, textAlign: "center", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", fontSize: 13, fontWeight: 700, color: "var(--ink)" }} />
                           <button type="button" title={t("زيادة", "Increase")} onClick={() => setPickQtyOf(p.itemId, q + stepUp(q))}
-                            style={{ width: 24, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", fontWeight: 800, fontSize: 14, lineHeight: 1 }}>+</button>
+                            style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", fontWeight: 800, fontSize: 16, lineHeight: 1 }}>+</button>
                           <button type="button" title={t("إضافة للفاتورة", "Add")} onClick={() => addItem(p, pickQtyOf(p.itemId))}
-                            style={{ flex: 1, height: 26, borderRadius: 7, border: "1px solid var(--accent)", background: "color-mix(in srgb,var(--accent) 22%,transparent)", color: "var(--primary)", cursor: "pointer", fontWeight: 800, fontSize: 11, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 2 }}>
+                            style={{ gridColumn: "1 / -1", width: "100%", height: 32, borderRadius: 8, border: "1px solid var(--accent)", background: "color-mix(in srgb,var(--accent) 22%,transparent)", color: "var(--primary)", cursor: "pointer", fontWeight: 800, fontSize: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
                             <Icon name="plus" size={12} /> {t("أضف", "Add")}
                           </button>
                         </div>
