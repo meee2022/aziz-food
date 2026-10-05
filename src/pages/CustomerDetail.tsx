@@ -10,6 +10,15 @@ import { PageHeader, Icon, Modal, Spinner, Empty, NumField, parseNum, normalizeN
 import { CUSTOMER_TYPES } from "./Customers";
 import { useUnits, parseCustomUnits, BASE_UNITS } from "../lib/units";
 
+/** فترات جاهزة لفلتر كشف الحساب (تُحسب من تاريخ اليوم). */
+const iso = (d: Date) => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
+const RANGES = [
+  { ar: "هذا الشهر", en: "This month", calc: () => { const n = new Date(); return [iso(new Date(n.getFullYear(), n.getMonth(), 1)), iso(n)]; } },
+  { ar: "الشهر الماضي", en: "Last month", calc: () => { const n = new Date(); return [iso(new Date(n.getFullYear(), n.getMonth() - 1, 1)), iso(new Date(n.getFullYear(), n.getMonth(), 0))]; } },
+  { ar: "آخر 3 شهور", en: "Last 3 months", calc: () => { const n = new Date(); return [iso(new Date(n.getFullYear(), n.getMonth() - 2, 1)), iso(n)]; } },
+  { ar: "هذه السنة", en: "This year", calc: () => { const n = new Date(); return [iso(new Date(n.getFullYear(), 0, 1)), iso(n)]; } },
+];
+
 export default function CustomerDetail() {
   const { id } = useParams();
   const cid = id as any;
@@ -22,6 +31,20 @@ export default function CustomerDetail() {
   const copyPrices = useMutation(api.customers.copyCustomerPrices);
 
   const [tab, setTab] = useState<"statement" | "prices">("statement");
+  const [from, setFrom] = useState("");   // فلتر كشف الحساب: من تاريخ
+  const [to, setTo] = useState("");       // إلى تاريخ
+
+  /** حركات الفترة المختارة. الرصيد في كل سطر تراكمي من أول الحساب فيظل صحيحًا بعد التصفية. */
+  const view = useMemo(() => {
+    const all: any[] = (st as any)?.ledger ?? [];
+    const rows = (from || to) ? all.filter((r) => (!from || r.date >= from) && (!to || r.date <= to)) : all;
+    const debit = rows.reduce((n, r) => n + (r.debit || 0), 0);
+    const credit = rows.reduce((n, r) => n + (r.credit || 0), 0);
+    // الرصيد قبل بداية الفترة = رصيد أقدم سطر داخلها ناقص حركته (الحركات مرتّبة تنازليًا)
+    const oldest = rows[rows.length - 1];
+    const opening = oldest ? (oldest.balance - oldest.debit + oldest.credit) : 0;
+    return { rows, debit, credit, opening, filtered: !!(from || to) };
+  }, [st, from, to]);
   const [payOpen, setPayOpen] = useState(false);
   const [editPay, setEditPay] = useState<any>(null);
   const [expandedPayment, setExpandedPayment] = useState<string | null>(null);
@@ -70,6 +93,7 @@ export default function CustomerDetail() {
             <div style={{ fontSize: 16, fontWeight: 800 }}>{t("كشف حساب", "Statement of Account")}</div>
             <div style={{ fontSize: 13 }}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</div>
             <div className="text-muted" style={{ fontSize: 11 }}>{formatDate(today(), lang)}</div>
+            {view.filtered && <div style={{ fontSize: 11 }}>{t("الفترة", "Period")}: {from ? formatDate(from, lang) : "…"} → {to ? formatDate(to, lang) : "…"}</div>}
           </div>
         </div>
       </div>}
@@ -109,11 +133,37 @@ export default function CustomerDetail() {
 
       {tab === "statement" ? (
        <>
+        {/* فلتر الفترة — يطبّق على الجدول وعلى الطباعة والـ PDF */}
+        <div className="card no-print" style={{ padding: "10px 14px", marginBottom: 12, display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div><label className="label">{t("من تاريخ", "From")}</label>
+            <input type="date" className="field tabular" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width: 160 }} /></div>
+          <div><label className="label">{t("إلى تاريخ", "To")}</label>
+            <input type="date" className="field tabular" value={to} onChange={(e) => setTo(e.target.value)} style={{ width: 160 }} /></div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", flex: 1 }}>
+            {RANGES.map((r) => (
+              <button key={r.ar} className="btn-ghost" style={{ padding: "6px 12px", fontSize: 12.5 }}
+                onClick={() => { const [a, b] = r.calc(); setFrom(a); setTo(b); }}>{t(r.ar, r.en)}</button>
+            ))}
+            {view.filtered && (
+              <button className="btn-secondary" style={{ padding: "6px 12px", fontSize: 12.5 }}
+                onClick={() => { setFrom(""); setTo(""); }}><Icon name="x" size={14} /> {t("كل الحركات", "All")}</button>
+            )}
+          </div>
+          {view.filtered && (
+            <div className="text-muted" style={{ fontSize: 12.5, width: "100%" }}>
+              {t("رصيد أول المدة", "Opening balance")}: <b className="tabular">{money(view.opening, false)}</b>
+              {" · "}{t("فواتير الفترة", "Invoiced")}: <b className="tabular">{money(view.debit, false)}</b>
+              {" · "}{t("مدفوعات الفترة", "Paid")}: <b className="tabular">{money(view.credit, false)}</b>
+              {" · "}{view.rows.length} {t("حركة", "entries")}
+            </div>
+          )}
+        </div>
+
         <div className="card no-print" style={{ padding: 0, overflowX: "auto" }}>
           <table className="data-table statement-table">
             <thead><tr><th>{t("التاريخ", "Date")}</th><th>{t("رقم الفاتورة", "Invoice #")}</th><th>{t("الفواتير", "Invoices")}</th><th>{t("الدفعة", "Payment")}</th><th>{t("الرصيد", "Balance")}</th><th>{t("طريقة الدفع", "Payment Method")}</th></tr></thead>
             <tbody>
-              {st.ledger.map((row: any) => (
+              {view.rows.map((row: any) => (
                 <Fragment key={row.id}>
                 <tr style={{ cursor: row.kind === "return" ? "default" : "pointer", background: expandedPayment === row.id ? "color-mix(in srgb,var(--accent) 8%,var(--card))" : undefined }}
                   onClick={() => row.kind === "invoice" ? navigate(`/invoice/${row.id}`) : row.kind === "payment" ? setExpandedPayment((v) => v === row.id ? null : row.id) : undefined}>
@@ -129,7 +179,7 @@ export default function CustomerDetail() {
               ))}
             </tbody>
           </table>
-          {st.ledger.length === 0 && <Empty text={t("لا حركات", "No transactions")} icon="invoice" />}
+          {view.rows.length === 0 && <Empty text={view.filtered ? t("لا حركات في هذه الفترة", "No transactions in this period") : t("لا حركات", "No transactions")} icon="invoice" />}
         </div>
 
         {/* تقرير الطباعة — بنفس تنسيق قالب مدم مي (يظهر عند الطباعة فقط) */}
@@ -146,7 +196,7 @@ export default function CustomerDetail() {
               </tr>
             </thead>
             <tbody>
-              {[...st.ledger].reverse().map((row: any) => (
+              {[...view.rows].reverse().map((row: any) => (
                 <tr key={"p" + row.id}>
                   <td style={{ textAlign: "center" }}>{formatDate(row.date, lang)}</td>
                   <td style={{ textAlign: "center" }}>
@@ -161,14 +211,14 @@ export default function CustomerDetail() {
                 </tr>
               ))}
               {/* أسطر فارغة لملء الجدول (كالنموذج) */}
-              {Array.from({ length: Math.max(0, 4 - st.ledger.length) }).map((_, i) => (
+              {Array.from({ length: Math.max(0, 4 - view.rows.length) }).map((_, i) => (
                 <tr key={"e" + i}><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>
               ))}
             </tbody>
           </table>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: 12.5, fontWeight: 700 }}>
-            <span>{t("إجمالي الفواتير", "Total Invoiced")}: {money(st.totalInvoiced, false)}</span>
-            <span>{t("المدفوع", "Paid")}: {money(st.totalPaid, false)}</span>
+            <span>{t("إجمالي الفواتير", "Total Invoiced")}: {money(view.filtered ? view.debit : st.totalInvoiced, false)}</span>
+            <span>{t("المدفوع", "Paid")}: {money(view.filtered ? view.credit : st.totalPaid, false)}</span>
             <span>{t("الرصيد المتبقي", "Balance Due")}: {money(st.balance, false)}</span>
           </div>
         </div>
@@ -479,6 +529,81 @@ function PaymentModal({ customerId, payment, onClose }: any) {
 }
 
 /**
+ * إضافة صنف جديد من صفحة العميل: يُنشأ الصنف ثم يُسعَّر لهذا العميل تحديدًا،
+ * ويُضاف لكتالوجه إن كان له كتالوج مخصّص — فلا حاجة للذهاب لصفحة الأصناف.
+ */
+function NewItemModal({ customerId, customerName, restricted, onClose }: any) {
+  const t = useT();
+  const units = useUnits();
+  const cats = useQuery(api.categories.list, {});
+  const createItem = useMutation(api.items.create);
+  const setPrice = useMutation(api.customers.setCustomerPrice);
+  const setAllowed = useMutation(api.customers.setAllowedItem);
+
+  const [f, setF] = useState<any>({ nameAr: "", nameEn: "", unit: "KG", categoryId: "", price: "", cost: "" });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const price = parseNum(normalizeNum(String(f.price)));
+  const cost = f.cost === "" ? 0 : parseNum(normalizeNum(String(f.cost)));
+  const valid = (f.nameAr.trim() || f.nameEn.trim()) && price > 0;
+
+  const save = async () => {
+    setBusy(true); setErr("");
+    try {
+      const nameEn = f.nameEn.trim() || f.nameAr.trim();   // الاسم الإنجليزي مطلوب في الصنف
+      const itemId = await createItem({
+        nameEn, nameAr: f.nameAr.trim() || undefined, unit: f.unit,
+        categoryId: f.categoryId || undefined, defaultCost: cost, defaultSell: price,
+      });
+      await setPrice({ customerId, itemId, price });               // سعر خاص بهذا العميل
+      if (restricted) await setAllowed({ customerId, itemId, allowed: true }); // يظهر له
+      onClose();
+    } catch (e: any) {
+      setErr(e?.message ?? String(e));
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal open title={t("صنف جديد", "New item") + (customerName ? " — " + customerName : "")} onClose={onClose}>
+      <div style={{ display: "grid", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
+          <div><label className="label">{t("الاسم بالعربي", "Name (AR)")}</label>
+            <input className="field" autoFocus value={f.nameAr} onChange={(e) => setF({ ...f, nameAr: e.target.value })} /></div>
+          <div><label className="label">{t("الاسم بالإنجليزي", "Name (EN)")}</label>
+            <input className="field" dir="ltr" value={f.nameEn} onChange={(e) => setF({ ...f, nameEn: e.target.value })} /></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10 }}>
+          <div><label className="label">{t("الوحدة", "Unit")}</label>
+            <select className="field" value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })}>
+              {units.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select></div>
+          <div><label className="label">{t("التصنيف", "Category")}</label>
+            <select className="field" value={f.categoryId} onChange={(e) => setF({ ...f, categoryId: e.target.value })}>
+              <option value="">—</option>
+              {(cats ?? []).map((c: any) => <option key={c._id} value={c._id}>{c.nameAr}</option>)}
+            </select></div>
+          <div><label className="label">{t("سعر البيع لهذا العميل", "Price for this customer")}</label>
+            <input className="field tabular" dir="ltr" inputMode="decimal" value={f.price}
+              onChange={(e) => setF({ ...f, price: e.target.value })} /></div>
+          <div><label className="label">{t("التكلفة (اختياري)", "Cost (optional)")}</label>
+            <input className="field tabular" dir="ltr" inputMode="decimal" value={f.cost}
+              onChange={(e) => setF({ ...f, cost: e.target.value })} /></div>
+        </div>
+        <div className="text-muted" style={{ fontSize: 12 }}>
+          {t("يُضاف الصنف للكتالوج العام، ويُحفظ هذا السعر كسعر خاص لهذا العميل فقط.",
+             "The item is added to the shared catalogue, and this price is saved for this customer only.")}
+        </div>
+        {err && <div className="pill badge-danger" style={{ fontSize: 12 }}>{err}</div>}
+        <button className="btn-primary" disabled={!valid || busy} onClick={save}>
+          <Icon name="check" size={16} /> {busy ? t("جارٍ الحفظ…", "Saving…") : t("حفظ الصنف", "Save item")}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/**
  * ورقة قائمة أسعار العميل (A4). على الشاشة تُرسم خارج نطاق الرؤية حتى يلتقطها html2canvas،
  * وعند الطباعة تصبح هي الصفحة (انظر CSS .price-sheet في الأعلى).
  */
@@ -536,6 +661,7 @@ function SpecialPrices({ customerId, customer, customers, copyFrom, setCopyFrom,
   const t = useT(); const { lang } = useLang();
   const sheetRef = useRef<HTMLDivElement>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [newItemOpen, setNewItemOpen] = useState(false);
 
   /** تصدير ورقة الأسعار إلى PDF ومشاركتها (واتساب على الموبايل) أو تنزيلها. */
   const exportPdf = async () => {
@@ -590,7 +716,13 @@ function SpecialPrices({ customerId, customer, customers, copyFrom, setCopyFrom,
         <button className="btn-secondary" disabled={!copyFrom} onClick={onCopy}><Icon name="copy" size={16} /> {t("نسخ", "Copy")}</button>
         <button className="btn-ghost" onClick={() => window.print()} title={t("طباعة قائمة أسعار هذا العميل", "Print this customer's price list")}><Icon name="print" size={16} /> {t("طباعة", "Print")}</button>
         <button className="btn-ghost" disabled={pdfBusy} onClick={exportPdf} title={t("تنزيل/مشاركة قائمة الأسعار PDF", "Download/share price list PDF")}><Icon name="download" size={16} /> {pdfBusy ? "…" : "PDF"}</button>
+        <button className="btn-primary" onClick={() => setNewItemOpen(true)}><Icon name="plus" size={16} /> {t("صنف جديد", "New item")}</button>
       </div>
+
+      {newItemOpen && (
+        <NewItemModal customerId={customerId} customerName={customer?.name} restricted={restricted}
+          onClose={() => setNewItemOpen(false)} />
+      )}
 
       {/* ورقة قائمة الأسعار (للطباعة وPDF): تعرض فقط الأصناف التي يراها العميل بسعره الفعّال */}
       <PriceSheet ref={sheetRef} customer={customer} settings={settings ?? {}} lang={lang} t={t}

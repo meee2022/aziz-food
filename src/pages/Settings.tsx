@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAction } from "convex/react";
 import { useAuthedQuery as useQuery, useAuthedMutation as useMutation } from "../lib/authedConvex";
 import { api } from "../../convex/_generated/api";
+import { Link } from "react-router-dom";
 import { BUILD_ID } from "../lib/autoUpdate";
 import { useT, useLang } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
@@ -337,6 +338,21 @@ export default function Settings() {
           alert(cleanErr(e) || t("تعذّر الحفظ", "Could not save"));
         }
       }} />}
+
+      {/* صفحات متقدّمة — أُخفيت من القائمة الجانبية لأن الأصناف وأسعارها تُدار من صفحة كل عميل */}
+      {user?.role === "admin" && (
+        <div className="card" style={{ marginTop: 18 }}>
+          <div className="section-title" style={{ marginBottom: 4 }}>{t("صفحات متقدّمة", "Advanced pages")}</div>
+          <div className="text-muted" style={{ fontSize: 12, marginBottom: 10 }}>
+            {t("إدارة كل الأصناف دفعة واحدة (الصور، الاستيراد من إكسيل) وتحديث أسعار اليوم للجميع. الاستخدام اليومي من صفحة العميل.",
+               "Manage all items at once (photos, Excel import) and update today's prices for everyone. Day-to-day work happens on the customer page.")}
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Link to="/items" className="btn-secondary"><Icon name="box" size={16} /> {t("كل الأصناف", "All items")}</Link>
+            <Link to="/prices" className="btn-secondary"><Icon name="money" size={16} /> {t("مركز الأسعار", "Price Center")}</Link>
+          </div>
+        </div>
+      )}
 
       {/* رقم الإصدار — يتحدّث تلقائيًا مع كل نشر؛ مفيد للتأكد أن المتصفح يشغّل آخر نسخة */}
       <div className="text-muted" style={{ textAlign: "center", fontSize: 11, marginTop: 24, direction: "ltr" }}>
