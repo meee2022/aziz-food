@@ -20,6 +20,7 @@ import type * as expenses from "../expenses.js";
 import type * as hash from "../hash.js";
 import type * as helpers from "../helpers.js";
 import type * as invoices from "../invoices.js";
+import type * as itemImageSeed from "../itemImageSeed.js";
 import type * as items from "../items.js";
 import type * as notify from "../notify.js";
 import type * as orders from "../orders.js";
@@ -52,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   hash: typeof hash;
   helpers: typeof helpers;
   invoices: typeof invoices;
+  itemImageSeed: typeof itemImageSeed;
   items: typeof items;
   notify: typeof notify;
   orders: typeof orders;
