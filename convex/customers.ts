@@ -428,6 +428,7 @@ export const statement = query({
         credit: 0,
         at: i.createdAt,
         id: i._id,
+        pay: { paid: i.paidAmount, remaining: round2(Math.max(0, i.total - i.paidAmount)) },
       })),
       ...payments.map((p) => ({
         kind: "payment" as const,
@@ -464,7 +465,20 @@ export const statement = query({
         id: r._id,
         note: r.note ?? "",
       })),
-    ].sort((a, b) => a.at - b.at);
+    ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.at - b.at));
+
+    // What was still owed on each covered invoice right after each payment:
+    // today's remaining plus whatever later payments put on that invoice.
+    const later = new Map<string, number>();
+    for (let i = ledger.length - 1; i >= 0; i--) {
+      const row: any = ledger[i];
+      if (row.kind !== "payment") continue;
+      row.coveredInvoices = row.coveredInvoices.map((cv: any) => ({
+        ...cv,
+        remainingAfter: round2(Math.max(0, cv.remaining + (later.get(String(cv.id)) ?? 0))),
+      }));
+      for (const cv of row.coveredInvoices) later.set(String(cv.id), (later.get(String(cv.id)) ?? 0) + cv.amount);
+    }
 
     let running = 0;
     const withBalance = ledger.map((row) => {
