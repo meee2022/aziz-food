@@ -12,31 +12,6 @@ import { useUnits, parseCustomUnits, BASE_UNITS } from "../lib/units";
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-/**
- * Statement rows as the customer reads them: ordered by the date on the document
- * (entry time only breaks ties), running balance in that order, how much is paid
- * and left on each invoice today, and what was left on each covered invoice right
- * after each payment. Returned newest first, like the server.
- */
-function buildLedger(raw: any[]): any[] {
-  const asc = [...raw].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.at - b.at));
-  let bal = 0;
-  const rows = asc.map((r) => ({ ...r, balance: r2((bal += r.debit - r.credit)) }));
-
-  const status = new Map<string, { paid: number; remaining: number }>();
-  for (const r of rows) if (r.kind === "payment") for (const cv of r.coveredInvoices ?? []) status.set(String(cv.id), { paid: cv.paidAmount, remaining: cv.remaining });
-
-  const later = new Map<string, number>(); // allocations from payments after the current one
-  for (let i = rows.length - 1; i >= 0; i--) {
-    const r: any = rows[i];
-    if (r.kind === "invoice") { r.pay = r.pay ?? status.get(String(r.id)); continue; }
-    if (r.kind !== "payment") continue;
-    r.coveredInvoices = (r.coveredInvoices ?? []).map((cv: any) => ({ ...cv, remainingAfter: cv.remainingAfter ?? r2(Math.max(0, cv.remaining + (later.get(String(cv.id)) ?? 0))) }));
-    for (const cv of r.coveredInvoices) later.set(String(cv.id), (later.get(String(cv.id)) ?? 0) + cv.amount);
-  }
-  return rows.reverse();
-}
-
 /** Under a payment: what it settled and what is still owed on each invoice it touched. */
 function CoverageLine({ row, t }: any) {
   const covered = row.coveredInvoices ?? [];
@@ -82,10 +57,8 @@ export default function CustomerDetail() {
   const [to, setTo] = useState("");       // إلى تاريخ
 
   /** حركات الفترة المختارة. الرصيد في كل سطر تراكمي من أول الحساب فيظل صحيحًا بعد التصفية. */
-  const ledger = useMemo(() => buildLedger((st as any)?.ledger ?? []), [st]);
-  const stView = useMemo(() => st && { ...(st as any), ledger }, [st, ledger]); // Excel/Word get the same order
   const view = useMemo(() => {
-    const all: any[] = ledger;
+    const all: any[] = (st as any)?.ledger ?? []; // ordered by date, with pay / remainingAfter (server)
     const rows = (from || to) ? all.filter((r) => (!from || r.date >= from) && (!to || r.date <= to)) : all;
     const debit = rows.reduce((n, r) => n + (r.debit || 0), 0);
     const credit = rows.reduce((n, r) => n + (r.credit || 0), 0);
@@ -93,7 +66,7 @@ export default function CustomerDetail() {
     const oldest = rows[rows.length - 1];
     const opening = oldest ? (oldest.balance - oldest.debit + oldest.credit) : 0;
     return { rows, debit, credit, opening, filtered: !!(from || to) };
-  }, [ledger, from, to]);
+  }, [st, from, to]);
   const [payOpen, setPayOpen] = useState(false);
   const [editPay, setEditPay] = useState<any>(null);
   const [expandedPayment, setExpandedPayment] = useState<string | null>(null);
@@ -123,8 +96,8 @@ export default function CustomerDetail() {
             <Link to="/customers" className="btn-ghost"><Icon name="back" size={16} /> {t("رجوع", "Back")}</Link>
             {tab === "statement" && <>
               <button className="btn-ghost" onClick={() => window.print()}><Icon name="print" size={16} /> {t("طباعة", "Print")}</button>
-              <button className="btn-ghost" onClick={() => statementToExcel(stView, c, settings ?? {}, formatDate(today(), lang))}><Icon name="download" size={16} /> Excel</button>
-              <button className="btn-ghost" onClick={() => statementToWord(stView, c, settings ?? {}, formatDate(today(), lang))}><Icon name="download" size={16} /> Word</button>
+              <button className="btn-ghost" onClick={() => statementToExcel(st, c, settings ?? {}, formatDate(today(), lang))}><Icon name="download" size={16} /> Excel</button>
+              <button className="btn-ghost" onClick={() => statementToWord(st, c, settings ?? {}, formatDate(today(), lang))}><Icon name="download" size={16} /> Word</button>
             </>}
             <button className="btn-secondary" onClick={sendStatementWhatsapp}><Icon name="whatsapp" size={16} /> {t("إرسال كشف", "Send")}</button>
             <button className="btn-primary" onClick={() => setPayOpen(true)}><Icon name="money" size={16} /> {t("تسجيل دفعة", "Add Payment")}</button>
